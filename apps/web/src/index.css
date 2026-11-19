@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+}
+
+body {
+  background-color: #09090b;
+  color: #f4f4f5;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+  padding-top: var(--sat);
+  padding-bottom: var(--sab);
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: #111114;
+}
+::-webkit-scrollbar-thumb {
+  background: #27272f;
+  border-radius: 9999px;
+}
+
+.bid-btn-glow {
+  box-shadow: 0 0 20px rgba(0, 210, 106, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+.bid-btn-glow:active {
+  transform: scale(0.97);
+}
+
+.glass-card {
+  background: linear-gradient(180deg, rgba(24, 24, 29, 0.95) 0%, rgba(15, 15, 19, 0.98) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}

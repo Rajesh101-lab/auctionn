@@ -1,0 +1,11 @@
+{
+  "name": "ipl-mega-auction-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:server": "pnpm --filter @ipl/server dev",
+    "dev:web": "pnpm --filter @ipl/web dev",
+    "build": "pnpm --filter @ipl/shared-types build && pnpm --filter @ipl/server build && pnpm --filter @ipl/web build",
+    "test": "pnpm --filter @ipl/shared-types test"
+  }
+}
