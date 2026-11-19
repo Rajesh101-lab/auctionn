@@ -50,13 +50,13 @@ export const Lobby: React.FC<LobbyProps> = ({
             <Sparkles className="w-3.5 h-3.5" /> BCCI Official Rulebook Compliant
           </div>
           <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight leading-tight">
-            IPL MEGA AUCTION <br />
+            AUCTIONN <br />
             <span className="bg-gradient-to-r from-amber-400 via-orange-500 to-rose-600 bg-clip-text text-transparent">
               PRO SIMULATOR
             </span>
           </h1>
           <p className="text-base sm:text-lg text-zinc-400 max-w-2xl mx-auto">
-            Experience the real high-stakes IPL Mega Auction. Server-authoritative multiplayer rooms, 10 franchise owners, 20 spectators, customizable AI bot bidding, 6-set rotation, and the 100-point Playing XI Championship calculator.
+            Experience the real high-stakes Auctionn. Server-authoritative multiplayer rooms, 10 franchise owners, 20 spectators, customizable AI bot bidding, 6-set rotation, and the 100-point Playing XI Championship calculator.
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-4 pt-4">

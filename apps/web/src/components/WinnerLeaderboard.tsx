@@ -32,7 +32,7 @@ export const WinnerLeaderboard: React.FC<WinnerLeaderboardProps> = ({
       {champion && (
         <div className="relative overflow-hidden rounded-3xl p-8 border border-amber-500/30 bg-gradient-to-b from-amber-500/10 via-surface-900 to-surface-950 text-center space-y-4 shadow-2xl">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-black uppercase tracking-widest">
-            <Trophy className="w-4 h-4 text-amber-400" /> IPL Mega Auction Champion
+            <Trophy className="w-4 h-4 text-amber-400" /> Auctionn Champion
           </div>
 
           <div className="space-y-2">

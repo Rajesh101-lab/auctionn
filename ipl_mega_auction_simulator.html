@@ -1,0 +1,1954 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IPL Mega Auction Simulator — Pro Franchise Edition</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            surface: {
+              950: '#09090b',
+              900: '#111114',
+              850: '#16161a',
+              800: '#1e1e24',
+              700: '#27272f',
+            },
+            emeraldBid: {
+              500: '#00d26a',
+              600: '#00b85c',
+              700: '#00994c',
+            }
+          },
+          animation: {
+            'pulse-fast': 'pulse 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'pop': 'pop 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+            'slide-up': 'slideUp 0.3s ease-out',
+          },
+          keyframes: {
+            pop: {
+              '0%': { transform: 'scale(0.95)', opacity: '0.7' },
+              '70%': { transform: 'scale(1.02)' },
+              '100%': { transform: 'scale(1)', opacity: '1' },
+            },
+            slideUp: {
+              '0%': { transform: 'translateY(10px)', opacity: '0' },
+              '100%': { transform: 'translateY(0)', opacity: '1' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #09090b;
+      color: #f4f4f5;
+      overflow-x: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* Custom scrollbar for dark arena */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #111114;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #27272f;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3f3f46;
+    }
+    .bid-btn-glow {
+      box-shadow: 0 0 24px rgba(0, 210, 106, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    }
+    .bid-btn-glow:hover:not(:disabled) {
+      box-shadow: 0 0 32px rgba(0, 210, 106, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    }
+    .timer-urgent {
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.45);
+    }
+    .glass-card {
+      background: linear-gradient(180deg, rgba(24, 24, 29, 0.92) 0%, rgba(15, 15, 19, 0.96) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans antialiased selection:bg-emerald-500 selection:text-black">
+
+  <!-- Toast Notification Banner (Replaces alert()) -->
+  <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none max-w-sm w-full px-4 sm:px-0"></div>
+
+  <!-- Top Global Navbar -->
+  <header class="sticky top-0 z-40 bg-surface-950/90 backdrop-blur-md border-b border-white/10">
+    <div class="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-3 cursor-pointer" onclick="app.confirmReturnHome()">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 via-orange-500 to-rose-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-black tracking-tight text-base sm:text-lg text-white">IPL AUCTION<span class="text-emerald-400">.PRO</span></span>
+            <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">MEGA EDITION</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Room & Audio Status Pill -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        <div id="nav-room-badge" class="hidden items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-800 border border-white/10 text-xs font-mono">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span class="text-zinc-400">ROOM:</span>
+          <span id="nav-room-code" class="font-bold text-white">IPL-88X</span>
+          <button onclick="app.copyRoomCode()" title="Copy Room Code" class="text-zinc-400 hover:text-white ml-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+          </button>
+        </div>
+
+        <button id="sound-toggle-btn" onclick="app.toggleSound()" class="p-2 rounded-xl bg-surface-800 hover:bg-surface-700 border border-white/10 text-zinc-300 transition" title="Toggle Hammer & Bid Audio">
+          <svg id="sound-on-icon" class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+          <svg id="sound-off-icon" class="w-4 h-4 text-zinc-500 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN VIEW CONTAINER -->
+  <main class="flex-1 flex flex-col">
+
+    <!-- ===================================================================== -->
+    <!-- SCREEN 1: LANDING PAGE                                                -->
+    <!-- ===================================================================== -->
+    <section id="screen-landing" class="flex-1 max-w-7xl mx-auto w-full px-4 py-8 sm:py-12 flex flex-col justify-between gap-10">
+      <!-- Hero Banner -->
+      <div class="relative overflow-hidden rounded-3xl glass-card p-6 sm:p-12 border border-white/10 shadow-2xl">
+        <div class="absolute -top-24 -right-24 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -bottom-24 -left-24 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div class="relative z-10 grid lg:grid-cols-12 gap-8 items-center">
+          <div class="lg:col-span-7 space-y-6">
+            <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-semibold text-amber-400">
+              <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+              OFFICIAL BCCI MEGA AUCTION ENGINE • 120 CR PURSE
+            </div>
+
+            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.08]">
+              Build Your Championship <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">IPL Dynasty.</span>
+            </h1>
+
+            <p class="text-zinc-400 text-base sm:text-lg max-w-2xl leading-relaxed">
+              Step into the high-stakes auction war room. Manage your ₹120.00 Cr salary cap, outsmart 9 rival AI or human franchise owners across 6 structured player sets, enforce overseas limits, and dominate the Accelerated Unsold Round.
+            </p>
+
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-2">
+              <button onclick="app.goToLobby()" class="px-8 py-4 rounded-2xl bg-emeraldBid-500 hover:bg-emeraldBid-600 text-zinc-950 font-black text-lg tracking-wide transition transform active:scale-95 bid-btn-glow flex items-center justify-center gap-3 cursor-pointer">
+                <span>PLAY AUCTION</span>
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+              </button>
+              <button onclick="app.quickStartSolo()" class="px-6 py-4 rounded-2xl bg-surface-800 hover:bg-surface-700 text-white font-bold text-base border border-white/10 transition flex items-center justify-center gap-2 cursor-pointer">
+                <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <span>Instant Solo Quick-Start</span>
+              </button>
+            </div>
+
+            <!-- Live Platform Telemetry -->
+            <div class="grid grid-cols-3 gap-4 pt-4 border-t border-white/10">
+              <div>
+                <div class="text-2xl sm:text-3xl font-black font-mono text-white">10</div>
+                <div class="text-xs text-zinc-400 font-medium">IPL Franchises</div>
+              </div>
+              <div>
+                <div class="text-2xl sm:text-3xl font-black font-mono text-emerald-400">₹120 Cr</div>
+                <div class="text-xs text-zinc-400 font-medium">Salary Purse Cap</div>
+              </div>
+              <div>
+                <div class="text-2xl sm:text-3xl font-black font-mono text-amber-400">6 Sets</div>
+                <div class="text-xs text-zinc-400 font-medium">Incl. Accelerated</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Preview Card (CricketDirector Style Live Preview) -->
+          <div class="lg:col-span-5">
+            <div class="rounded-2xl bg-surface-900 border border-white/10 p-5 shadow-2xl space-y-4">
+              <div class="flex items-center justify-between text-xs text-zinc-400">
+                <span class="flex items-center gap-1.5 font-bold text-emerald-400">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> LIVE AUCTION PREVIEW
+                </span>
+                <span class="font-mono">SET 1 • MARQUEE</span>
+              </div>
+              <div class="h-1.5 w-full bg-surface-800 rounded-full overflow-hidden">
+                <div class="h-full bg-rose-500 w-3/4 rounded-full"></div>
+              </div>
+              <div class="flex items-start justify-between">
+                <div>
+                  <div class="flex items-center gap-1.5 mb-1.5">
+                    <span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">All-Rounder</span>
+                    <span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">OS</span>
+                    <span class="text-xs font-semibold text-zinc-400">🏏 ENG</span>
+                  </div>
+                  <h3 class="text-2xl font-black text-white">Will Jacks</h3>
+                  <p class="text-xs text-zinc-400 mt-0.5">Explosive Top-Order • Off-Break • Rating 89</p>
+                </div>
+                <div class="text-right">
+                  <div class="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">CURRENT BID</div>
+                  <div class="text-2xl font-black font-mono text-white">2.00 Cr</div>
+                  <div class="mt-1 inline-flex items-center px-2.5 py-1 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-400 font-mono font-black text-xs">
+                    2 SEC
+                  </div>
+                </div>
+              </div>
+              <div class="pt-2 flex items-center gap-3">
+                <div class="text-xs font-mono text-zinc-400">Purse: <span class="text-emerald-400 font-bold">92.30 Cr</span></div>
+                <div class="flex-1 py-2.5 px-4 rounded-xl bg-emeraldBid-500 text-zinc-950 font-black text-center text-sm">
+                  BID ₹2.20 Cr
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Comprehensive IPL Rules & Calculation Engine Breakdown -->
+      <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="rounded-2xl glass-card p-5 space-y-2">
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center font-black text-lg">₹</div>
+          <h3 class="font-bold text-white text-base">120 Cr Purse & Reserve Math</h3>
+          <p class="text-xs text-zinc-400 leading-relaxed">
+            Every franchise starts with <strong class="text-zinc-200">₹120.00 Cr</strong>. Our engine enforces <code class="text-emerald-400">Max_Bid = Purse - ((18 - Squad - 1) × 0.30 Cr)</code> so you never run out of funds before reaching 18 players.
+          </p>
+        </div>
+
+        <div class="rounded-2xl glass-card p-5 space-y-2">
+          <div class="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center font-black text-lg">📈</div>
+          <h3 class="font-bold text-white text-base">Official Bid Increment Slabs</h3>
+          <ul class="text-xs text-zinc-400 space-y-1 font-mono">
+            <li>• &lt; ₹1.00 Cr : <span class="text-white">+₹0.05 Cr (5L)</span></li>
+            <li>• ₹1 – ₹2 Cr : <span class="text-white">+₹0.10 Cr (10L)</span></li>
+            <li>• ₹2 – ₹5 Cr : <span class="text-white">+₹0.20 Cr (20L)</span></li>
+            <li>• &gt; ₹5.00 Cr : <span class="text-white">+₹0.25 Cr (25L)</span></li>
+          </ul>
+        </div>
+
+        <div class="rounded-2xl glass-card p-5 space-y-2">
+          <div class="w-9 h-9 rounded-xl bg-purple-500/15 text-purple-400 flex items-center justify-center font-black text-lg">🌍</div>
+          <h3 class="font-bold text-white text-base">Squad & Overseas Rules</h3>
+          <p class="text-xs text-zinc-400 leading-relaxed">
+            Build a balanced squad of <strong class="text-zinc-200">18 to 25 players</strong>. Strictly capped at <strong class="text-purple-300">Max 8 Overseas (OS)</strong> players. Bidding auto-locks if overseas or max squad cap is reached.
+          </p>
+        </div>
+
+        <div class="rounded-2xl glass-card p-5 space-y-2">
+          <div class="w-9 h-9 rounded-xl bg-rose-500/15 text-rose-400 flex items-center justify-center font-black text-lg">🔄</div>
+          <h3 class="font-bold text-white text-base">6-Set Rotation & Skip Vote</h3>
+          <p class="text-xs text-zinc-400 leading-relaxed">
+            Batters → Bowlers → All-Rounders → Round 2 Batters & Bowlers → <strong class="text-amber-300">Accelerated Unsold Round</strong>. Vote to skip unwanted players unanimously!
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- SCREEN 2: LOBBY / CREATE OR JOIN ROOM                                 -->
+    <!-- ===================================================================== -->
+    <section id="screen-lobby" class="hidden flex-1 max-w-6xl mx-auto w-full px-4 py-8 space-y-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <button onclick="app.showScreen('landing')" class="text-xs font-semibold text-zinc-400 hover:text-white flex items-center gap-1 mb-2 cursor-pointer">
+            ← Back to Overview
+          </button>
+          <h2 class="text-2xl sm:text-3xl font-black text-white">Auction War Rooms</h2>
+          <p class="text-sm text-zinc-400">Create a private room (up to 10 Franchise Owners & 20 Spectators) or join an active lobby.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <input id="player-nickname-input" type="text" maxlength="16" value="You (Owner)" placeholder="Your Manager Name" class="px-3.5 py-2.5 rounded-xl bg-surface-800 border border-white/10 text-sm font-semibold text-white focus:outline-none focus:border-emerald-500" />
+        </div>
+      </div>
+
+      <div class="grid lg:grid-cols-12 gap-6">
+        <!-- Left: Create Custom Room -->
+        <div class="lg:col-span-5 rounded-3xl glass-card p-6 space-y-5 h-fit">
+          <div class="flex items-center justify-between">
+            <h3 class="text-lg font-extrabold text-white">Create Auction Room</h3>
+            <span class="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-400 font-mono text-xs font-bold">HOST</span>
+          </div>
+
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Room Name</label>
+              <input id="create-room-name" type="text" value="BCCI Mega War Room #1" class="w-full px-3.5 py-2.5 rounded-xl bg-surface-900 border border-white/10 text-sm text-white focus:outline-none focus:border-emerald-500" />
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Franchise Purse</label>
+                <select id="create-room-purse" class="w-full px-3 py-2.5 rounded-xl bg-surface-900 border border-white/10 text-sm font-mono text-white focus:outline-none focus:border-emerald-500">
+                  <option value="120" selected>₹120.00 Cr (Mega)</option>
+                  <option value="100">₹100.00 Cr (Classic)</option>
+                  <option value="150">₹150.00 Cr (Super)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Bid Hammer Timer</label>
+                <select id="create-room-timer" class="w-full px-3 py-2.5 rounded-xl bg-surface-900 border border-white/10 text-sm font-mono text-white focus:outline-none focus:border-emerald-500">
+                  <option value="10" selected>10 Seconds</option>
+                  <option value="8">8 Seconds (Fast)</option>
+                  <option value="15">15 Seconds (Tactical)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="p-3.5 rounded-2xl bg-surface-900/90 border border-white/5 space-y-2 text-xs">
+              <div class="flex justify-between text-zinc-400">
+                <span>Franchise Owner Slots:</span>
+                <span class="font-mono font-bold text-white">Up to 10 Teams</span>
+              </div>
+              <div class="flex justify-between text-zinc-400">
+                <span>Spectator Gallery Slots:</span>
+                <span class="font-mono font-bold text-white">Up to 20 Viewers</span>
+              </div>
+              <div class="flex justify-between text-zinc-400">
+                <span>Empty Team Seats:</span>
+                <span class="font-mono font-bold text-emerald-400">Smart AI Bots Auto-Fill</span>
+              </div>
+            </div>
+
+            <button onclick="app.createRoom()" class="w-full py-3.5 rounded-2xl bg-emeraldBid-500 hover:bg-emeraldBid-600 text-zinc-950 font-black text-base transition transform active:scale-95 bid-btn-glow cursor-pointer">
+              GENERATE ROOM & SELECT TEAM →
+            </button>
+          </div>
+        </div>
+
+        <!-- Right: Join By Code + Active Simulated Rooms -->
+        <div class="lg:col-span-7 space-y-5">
+          <!-- Direct Code Join -->
+          <div class="rounded-3xl glass-card p-5 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div class="flex-1">
+              <label class="block text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-1">Have an Invite Code?</label>
+              <input id="join-code-input" type="text" maxlength="7" placeholder="e.g. IPL-94X" class="w-full px-3.5 py-2 rounded-xl bg-surface-900 border border-white/10 font-mono text-sm uppercase text-white focus:outline-none focus:border-emerald-500" />
+            </div>
+            <div class="flex gap-2 sm:pt-5">
+              <button onclick="app.joinByCode('owner')" class="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-white text-zinc-950 font-bold text-xs hover:bg-zinc-200 transition cursor-pointer">
+                Join as Owner
+              </button>
+              <button onclick="app.joinByCode('spectator')" class="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-surface-800 text-zinc-200 border border-white/10 font-bold text-xs hover:bg-surface-700 transition cursor-pointer">
+                Spectate
+              </button>
+            </div>
+          </div>
+
+          <!-- Active Public Rooms List -->
+          <div class="rounded-3xl glass-card p-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-extrabold text-white flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                Available Public Rooms
+              </h3>
+              <span class="text-xs text-zinc-400 font-mono">3 LIVE LOBBIES</span>
+            </div>
+
+            <div id="public-rooms-list" class="space-y-3">
+              <!-- Populated dynamically by JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- SCREEN 3: FRANCHISE SELECTION & PRE-AUCTION VAULT                     -->
+    <!-- ===================================================================== -->
+    <section id="screen-team-select" class="hidden flex-1 max-w-7xl mx-auto w-full px-4 py-8 space-y-6">
+      <div class="rounded-3xl glass-card p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span id="lobby-room-badge" class="px-2.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 font-mono text-xs font-bold">ROOM: IPL-94X</span>
+            <span id="lobby-role-badge" class="px-2.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-mono text-xs font-bold">ROLE: FRANCHISE OWNER</span>
+          </div>
+          <h2 class="text-2xl sm:text-3xl font-black text-white">Select Your IPL Franchise</h2>
+          <p class="text-sm text-zinc-400">Choose 1 of the 10 franchises below. Unselected teams are automatically managed by distinct AI personalities.</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-4 bg-surface-900/90 px-4 py-3 rounded-2xl border border-white/10">
+          <div>
+            <div class="text-[10px] font-bold uppercase text-zinc-500">Owners Ready</div>
+            <div class="text-base font-mono font-black text-white"><span id="lobby-owners-count" class="text-emerald-400">1</span>/10</div>
+          </div>
+          <div class="h-8 w-px bg-white/10"></div>
+          <div>
+            <div class="text-[10px] font-bold uppercase text-zinc-500">Spectators</div>
+            <div class="text-base font-mono font-black text-white"><span id="lobby-spectators-count" class="text-sky-400">4</span>/20</div>
+          </div>
+          <div class="h-8 w-px bg-white/10"></div>
+          <button id="start-auction-btn" onclick="app.startAuction()" class="px-6 py-3 rounded-xl bg-emeraldBid-500 hover:bg-emeraldBid-600 text-zinc-950 font-black text-sm transition transform active:scale-95 bid-btn-glow cursor-pointer">
+            ENTER AUCTION ARENA →
+          </button>
+        </div>
+      </div>
+
+      <!-- 10 Franchises Grid -->
+      <div id="franchises-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <!-- Populated dynamically -->
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- SCREEN 4: LIVE AUCTION ARENA (CRICKETDIRECTOR PRO DARK UI)            -->
+    <!-- ===================================================================== -->
+    <section id="screen-arena" class="hidden flex-1 max-w-7xl mx-auto w-full px-3 sm:px-4 py-4 flex flex-col gap-4">
+
+      <!-- Set & Room Control Strip -->
+      <div class="flex flex-wrap items-center justify-between gap-2 bg-surface-900 border border-white/10 rounded-2xl px-4 py-2.5">
+        <div class="flex items-center gap-2 sm:gap-3">
+          <span id="arena-set-badge" class="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 font-bold text-xs">
+            SET 1: CAPPED BATTERS (R1)
+          </span>
+          <span class="text-xs font-mono text-zinc-400">
+            LOT <strong id="arena-lot-number" class="text-white">1</strong> / <span id="arena-lot-total">36</span>
+          </span>
+          <span id="arena-user-team-pill" class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 text-xs font-bold text-white">
+            <!-- User team badge -->
+          </span>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <!-- Speed Toggle -->
+          <button id="speed-toggle-btn" onclick="app.cycleSpeed()" class="px-2.5 py-1.5 rounded-xl bg-surface-800 hover:bg-surface-700 border border-white/10 text-xs font-mono font-bold text-zinc-300 transition cursor-pointer" title="Simulation Speed">
+            1.0x
+          </button>
+          <!-- Pause / Resume -->
+          <button id="pause-toggle-btn" onclick="app.togglePause()" class="px-3 py-1.5 rounded-xl bg-surface-800 hover:bg-surface-700 border border-white/10 text-xs font-bold text-zinc-200 flex items-center gap-1.5 transition cursor-pointer">
+            <span id="pause-icon">⏸</span>
+            <span id="pause-label">Pause</span>
+          </button>
+          <!-- Vote to Skip Player -->
+          <button id="skip-vote-btn" onclick="app.voteSkipPlayer()" class="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer" title="Vote to skip current player">
+            <span>⏭ Skip Vote</span>
+            <span id="skip-vote-count" class="font-mono bg-rose-500/20 px-1.5 py-0.5 rounded text-[11px]">0/10</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- PRIMARY AUCTION CARD (Matches Reference Screenshot Aesthetic) -->
+      <div class="relative rounded-2xl bg-surface-900 border border-white/10 overflow-hidden shadow-2xl">
+        <!-- Top Countdown Progress Bar -->
+        <div class="h-1.5 w-full bg-surface-800">
+          <div id="auction-progress-bar" class="h-full bg-rose-500 transition-all duration-200 ease-linear" style="width: 100%;"></div>
+        </div>
+
+        <div class="p-4 sm:p-6 space-y-5">
+          <!-- Top Row: Role/OS/Country + Player Name + Current Price + Timer Box -->
+          <div class="flex items-start justify-between gap-4">
+            <div class="space-y-2">
+              <!-- Badges -->
+              <div class="flex flex-wrap items-center gap-2">
+                <span id="player-role-badge" class="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                  All-Rounder
+                </span>
+                <span id="player-origin-badge" class="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  OS
+                </span>
+                <span id="player-country-label" class="text-xs font-bold text-zinc-400 flex items-center gap-1">
+                  🏏 ENG
+                </span>
+                <span id="player-rating-badge" class="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-white/5 text-amber-400 border border-white/10">
+                  OVR 91
+                </span>
+              </div>
+
+              <!-- Player Name -->
+              <h1 id="player-name" class="text-2xl sm:text-4xl font-black tracking-tight text-white">
+                Will Jacks
+              </h1>
+
+              <!-- Player Sub-Stats & High Bidder Pill -->
+              <div class="flex flex-wrap items-center gap-3 text-xs text-zinc-400">
+                <span id="player-specialty">Explosive Top-Order • Off-Spin</span>
+                <span>•</span>
+                <span>Base: <strong id="player-base-price" class="text-zinc-200 font-mono">₹2.00 Cr</strong></span>
+              </div>
+            </div>
+
+            <!-- Right: Current Bid Display & Countdown Box -->
+            <div class="flex items-center gap-3 sm:gap-4 shrink-0">
+              <div class="text-right">
+                <div id="bid-status-label" class="text-[11px] font-extrabold uppercase tracking-wider text-zinc-400">
+                  BASE PRICE
+                </div>
+                <div id="current-bid-amount" class="text-2xl sm:text-4xl font-black font-mono text-white tracking-tight">
+                  2.00 Cr
+                </div>
+                <!-- Active Leading Franchise Tag -->
+                <div id="leading-team-badge" class="mt-1 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-surface-800 text-zinc-400 border border-white/10">
+                  No Bids Yet
+                </div>
+              </div>
+
+              <!-- Red/Dark Countdown Timer Box -->
+              <div id="timer-box" class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-rose-950/60 border-2 border-rose-500/50 flex flex-col items-center justify-center shrink-0 transition-all">
+                <span id="timer-seconds" class="text-2xl sm:text-3xl font-black font-mono text-rose-400 leading-none">10</span>
+                <span class="text-[10px] font-bold tracking-widest text-rose-300/80 mt-1">SEC</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Action Row: Purse Left + Massive Emerald Green BID Button + Quick Squad Drawer Button -->
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
+            <!-- User Purse & Max Bid Readout -->
+            <div class="flex sm:flex-col justify-between sm:justify-center px-3.5 py-2 rounded-xl bg-surface-950/80 border border-white/5 sm:min-w-[165px]">
+              <div class="text-xs text-zinc-400 font-medium">
+                Purse: <span id="user-purse-display" class="font-mono font-extrabold text-emerald-400">120.00 Cr</span>
+              </div>
+              <div class="text-[11px] text-zinc-500 font-mono">
+                Max Bid: <span id="user-max-bid-display" class="text-zinc-300 font-bold">114.90 Cr</span>
+              </div>
+            </div>
+
+            <!-- Massive Emerald BID Button -->
+            <button id="main-bid-btn" onclick="app.placeUserBid()" class="flex-1 py-4 px-6 rounded-2xl bg-emeraldBid-500 hover:bg-emeraldBid-600 disabled:bg-surface-800 disabled:text-zinc-500 disabled:shadow-none text-zinc-950 font-black text-lg sm:text-xl tracking-wide transition transform active:scale-[0.99] bid-btn-glow flex items-center justify-center gap-2.5 cursor-pointer">
+              <span id="main-bid-btn-text">BID ₹2.00 Cr</span>
+            </button>
+
+            <!-- Quick Modal Button to inspect Squad Rules / All Purses -->
+            <button onclick="app.switchTab('squads')" class="p-4 rounded-2xl bg-surface-800 hover:bg-surface-700 border border-white/10 text-zinc-300 flex items-center justify-center gap-2 transition cursor-pointer" title="View All Franchise Purses & Squads">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+              <span class="sm:hidden text-xs font-bold">View All Teams</span>
+            </button>
+          </div>
+
+          <!-- Validation Warning Banner (Shown when user is leading, overseas full, or purse reserve locked) -->
+          <div id="bid-lock-reason" class="hidden text-center text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-xl py-2 px-3">
+            You hold the highest bid!
+          </div>
+        </div>
+      </div>
+
+      <!-- LIVE FRANCHISE PURSE TICKER STRIP (All 10 Teams Mini Status) -->
+      <div id="mini-teams-strip" class="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-2">
+        <!-- Populated dynamically -->
+      </div>
+
+      <!-- TABBED DASHBOARD: ACTIVITY | MY SQUAD | ALL TEAMS | PLAYER POOL | RULES & MATH -->
+      <div class="flex-1 flex flex-col rounded-2xl bg-surface-900 border border-white/10 overflow-hidden min-h-[380px]">
+        <!-- Tab Header Bar -->
+        <div class="flex items-center overflow-x-auto border-b border-white/10 bg-surface-950/60 px-2 pt-2 gap-1">
+          <button onclick="app.switchTab('activity')" id="tab-btn-activity" class="tab-btn px-4 py-2.5 rounded-t-xl text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 border-amber-400 bg-amber-500/10 text-amber-300 whitespace-nowrap cursor-pointer">
+            <span>💬 Activity</span>
+            <span id="activity-count-badge" class="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-amber-500/20 text-amber-300">0</span>
+          </button>
+
+          <button onclick="app.switchTab('mysquad')" id="tab-btn-mysquad" class="tab-btn px-4 py-2.5 rounded-t-xl text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 border-transparent text-zinc-400 hover:text-white whitespace-nowrap cursor-pointer">
+            <span>🛡️ My Squad</span>
+            <span id="mysquad-count-badge" class="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-surface-800 text-zinc-300">0/25</span>
+          </button>
+
+          <button onclick="app.switchTab('squads')" id="tab-btn-squads" class="tab-btn px-4 py-2.5 rounded-t-xl text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 border-transparent text-zinc-400 hover:text-white whitespace-nowrap cursor-pointer">
+            <span>🏆 All 10 Teams</span>
+          </button>
+
+          <button onclick="app.switchTab('pool')" id="tab-btn-pool" class="tab-btn px-4 py-2.5 rounded-t-xl text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 border-transparent text-zinc-400 hover:text-white whitespace-nowrap cursor-pointer">
+            <span>📋 Player Sets</span>
+          </button>
+
+          <button onclick="app.switchTab('rules')" id="tab-btn-rules" class="tab-btn px-4 py-2.5 rounded-t-xl text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 border-transparent text-zinc-400 hover:text-white whitespace-nowrap cursor-pointer">
+            <span>⚙️ Rules & Math</span>
+          </button>
+        </div>
+
+        <!-- TAB 1: LIVE ACTIVITY FEED & WAR ROOM CHAT -->
+        <div id="tab-panel-activity" class="flex-1 flex flex-col justify-between p-3 sm:p-4 gap-3">
+          <div id="activity-feed-list" class="flex-1 overflow-y-auto max-h-[340px] space-y-2.5 pr-1">
+            <!-- Real-time SOLD banners, UNSOLD alerts, Bid logs, and Chat messages -->
+          </div>
+
+          <!-- Bottom Chat Input Bar (Matches Reference Screenshot) -->
+          <form onsubmit="app.sendChatMessage(event)" class="flex items-center gap-2 pt-2 border-t border-white/10">
+            <button type="button" onclick="app.sendQuickReaction()" class="px-3 py-2.5 rounded-xl bg-surface-800 hover:bg-surface-700 border border-white/10 text-xs font-extrabold text-zinc-300 shrink-0 cursor-pointer" title="Send Franchise Chant">
+              🔥 CHANT
+            </button>
+            <input id="war-room-chat-input" type="text" placeholder="Send a message to the auction room..." class="flex-1 px-4 py-2.5 rounded-xl bg-surface-950 border border-white/10 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500" />
+            <button type="submit" class="p-2.5 rounded-xl bg-emeraldBid-500 hover:bg-emeraldBid-600 text-zinc-950 font-bold transition cursor-pointer" title="Send">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+            </button>
+          </form>
+        </div>
+
+        <!-- TAB 2: MY SQUAD ROSTER & ROLE BREAKDOWN -->
+        <div id="tab-panel-mysquad" class="hidden p-4 space-y-4 overflow-y-auto max-h-[420px]">
+          <div id="mysquad-summary-header" class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <!-- Populated dynamically -->
+          </div>
+          <div id="mysquad-players-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- TAB 3: ALL 10 FRANCHISES STANDINGS -->
+        <div id="tab-panel-squads" class="hidden p-4 overflow-x-auto max-h-[420px]">
+          <table class="w-full text-left border-collapse text-xs sm:text-sm">
+            <thead>
+              <tr class="border-b border-white/10 text-zinc-400 text-[11px] uppercase">
+                <th class="py-2.5 px-3">Franchise</th>
+                <th class="py-2.5 px-3">Owner</th>
+                <th class="py-2.5 px-3 text-right">Purse Left</th>
+                <th class="py-2.5 px-3 text-right">Max Bid</th>
+                <th class="py-2.5 px-3 text-center">Squad (18-25)</th>
+                <th class="py-2.5 px-3 text-center">Overseas (Max 8)</th>
+                <th class="py-2.5 px-3 text-center">BAT / BOWL / AR / WK</th>
+              </tr>
+            </thead>
+            <tbody id="all-teams-table-body" class="divide-y divide-white/5">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- TAB 4: PLAYER SETS & UPCOMING QUEUE -->
+        <div id="tab-panel-pool" class="hidden p-4 space-y-4 overflow-y-auto max-h-[420px]">
+          <div class="flex flex-wrap items-center gap-2">
+            <button onclick="app.filterPool('all')" class="pool-filter-btn px-3 py-1.5 rounded-lg bg-white text-zinc-950 font-bold text-xs cursor-pointer">All Lots</button>
+            <button onclick="app.filterPool('upcoming')" class="pool-filter-btn px-3 py-1.5 rounded-lg bg-surface-800 text-zinc-300 font-bold text-xs cursor-pointer">Upcoming</button>
+            <button onclick="app.filterPool('sold')" class="pool-filter-btn px-3 py-1.5 rounded-lg bg-surface-800 text-zinc-300 font-bold text-xs cursor-pointer">Sold</button>
+            <button onclick="app.filterPool('unsold')" class="pool-filter-btn px-3 py-1.5 rounded-lg bg-surface-800 text-zinc-300 font-bold text-xs cursor-pointer">Unsold (For Accelerated)</button>
+          </div>
+          <div id="player-pool-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- TAB 5: LIVE RULES & RESERVE CALCULATION ENGINE -->
+        <div id="tab-panel-rules" class="hidden p-4 sm:p-6 space-y-4 overflow-y-auto max-h-[420px] text-xs sm:text-sm">
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="p-4 rounded-2xl bg-surface-950 border border-white/10 space-y-2">
+              <h4 class="font-extrabold text-emerald-400">1. Official Bid Increment Slabs</h4>
+              <p class="text-zinc-400 text-xs">Every valid paddle raise increments automatically according to BCCI slabs:</p>
+              <div class="space-y-1.5 font-mono text-xs pt-1">
+                <div class="flex justify-between p-2 rounded bg-surface-900"><span>₹0.30 Cr – ₹0.95 Cr</span><span class="text-emerald-400 font-bold">+ ₹0.05 Cr (5 Lakhs)</span></div>
+                <div class="flex justify-between p-2 rounded bg-surface-900"><span>₹1.00 Cr – ₹1.90 Cr</span><span class="text-emerald-400 font-bold">+ ₹0.10 Cr (10 Lakhs)</span></div>
+                <div class="flex justify-between p-2 rounded bg-surface-900"><span>₹2.00 Cr – ₹4.80 Cr</span><span class="text-emerald-400 font-bold">+ ₹0.20 Cr (20 Lakhs)</span></div>
+                <div class="flex justify-between p-2 rounded bg-surface-900"><span>₹5.00 Cr and Above</span><span class="text-emerald-400 font-bold">+ ₹0.25 Cr (25 Lakhs)</span></div>
+              </div>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-surface-950 border border-white/10 space-y-2">
+              <h4 class="font-extrabold text-amber-400">2. Mandatory Squad Reserve Formula</h4>
+              <p class="text-zinc-400 text-xs">To guarantee every franchise completes at least an 18-player squad (min base ₹0.30 Cr each):</p>
+              <div class="p-3 rounded-xl bg-surface-900 font-mono text-xs text-zinc-200 border border-white/5">
+                Max_Allowable_Bid = Remaining_Purse - (MAX(0, 18 - Current_Squad - 1) × 0.30)
+              </div>
+              <div id="live-math-breakdown" class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 font-mono">
+                <!-- Live calculation injected here -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- SCREEN 5: POST-AUCTION SUMMARY & PLAYING XI EVALUATOR                 -->
+    <!-- ===================================================================== -->
+    <section id="screen-summary" class="hidden flex-1 max-w-7xl mx-auto w-full px-4 py-8 space-y-6">
+      <div class="rounded-3xl glass-card p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-emerald-500/30">
+        <div>
+          <span class="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-black uppercase tracking-wider">
+            AUCTION HAMMER CONCLUDED
+          </span>
+          <h2 class="text-3xl sm:text-4xl font-black text-white mt-2">Final Franchise Power Rankings</h2>
+          <p class="text-sm text-zinc-400 mt-1">Evaluated on Best Playing XI Rating, Squad Depth (18–25), Role Balance & Purse Efficiency.</p>
+        </div>
+        <button onclick="app.resetToLanding()" class="px-6 py-3.5 rounded-2xl bg-emeraldBid-500 hover:bg-emeraldBid-600 text-zinc-950 font-black text-sm transition cursor-pointer">
+          START NEW AUCTION ↻
+        </button>
+      </div>
+
+      <div id="summary-leaderboard" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Populated dynamically with each franchise's Best XI, Rating, and Squad status -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===================================================================== -->
+  <!-- JAVASCRIPT SIMULATION & CALCULATION ENGINE                            -->
+  <!-- ===================================================================== -->
+  <script>
+    /**
+     * IPL MEGA AUCTION SIMULATION ENGINE
+     * Includes:
+     * - Official BCCI Bid Increment Slabs
+     * - Mandatory 18-Player Purse Reserve Validation
+     * - 6-Set Rotation (Batters -> Bowlers -> All-Rounders -> R2 -> Unsold Accelerated)
+     * - Smart AI Franchise Owners with Distinct Personalities & Role Needs
+     * - Tone.js Synthesized Auction Hammer & Bid Click Audio
+     */
+
+    const FRANCHISES_DATA = [
+      { id: 'CSK', name: 'Chennai Super Kings', short: 'CSK', color: '#facc15', textColor: '#09090b', slogan: 'Whistle Podu! #Yellove', aiStyle: 'Tactical & Experienced', aggression: 0.72 },
+      { id: 'MI',  name: 'Mumbai Indians', short: 'MI', color: '#3b82f6', textColor: '#ffffff', slogan: 'Duniya Hila Denge! #OneFamily', aiStyle: 'Star & All-Rounder Hunter', aggression: 0.85 },
+      { id: 'RCB', name: 'Royal Challengers Bengaluru', short: 'RCB', color: '#ef4444', textColor: '#ffffff', slogan: 'Play Bold! #EeSalaCupNamde', aiStyle: 'Aggressive Power-Hitter Focus', aggression: 0.88 },
+      { id: 'KKR', name: 'Kolkata Knight Riders', short: 'KKR', color: '#a855f7', textColor: '#ffffff', slogan: 'Korbo Lorbo Jeetbo! #AmiKKR', aiStyle: 'Mystery Spin & Finisher Focus', aggression: 0.78 },
+      { id: 'SRH', name: 'Sunrisers Hyderabad', short: 'SRH', color: '#f97316', textColor: '#09090b', slogan: 'Orange Army Rise Up! #PlayWithFire', aiStyle: 'Ultra-Aggressive Overseas', aggression: 0.90 },
+      { id: 'RR',  name: 'Rajasthan Royals', short: 'RR', color: '#ec4899', textColor: '#ffffff', slogan: 'Halla Bol! #RoyalsFamily', aiStyle: 'Value & High-OVR Sniper', aggression: 0.74 },
+      { id: 'DC',  name: 'Delhi Capitals', short: 'DC', color: '#2563eb', textColor: '#ffffff', slogan: 'Roar Macha! #YehHaiNayiDilli', aiStyle: 'Balanced Young Core', aggression: 0.76 },
+      { id: 'PBKS',name: 'Punjab Kings', short: 'PBKS', color: '#dc2626', textColor: '#ffffff', slogan: 'Sadda Punjab! #SherSquad', aiStyle: 'Deep Purse Marquee Bidder', aggression: 0.86 },
+      { id: 'LSG', name: 'Lucknow Super Giants', short: 'LSG', color: '#06b6d4', textColor: '#09090b', slogan: 'Gazab Andaz! #AbApniBaariHai', aiStyle: 'Pace & All-Rounder Heavy', aggression: 0.75 },
+      { id: 'GT',  name: 'Gujarat Titans', short: 'GT', color: '#14b8a6', textColor: '#09090b', slogan: 'Aava De! #TitansFAM', aiStyle: 'Disciplined Death-Over Focus', aggression: 0.73 }
+    ];
+
+    // Structured IPL Player Database across Sets 1 to 5 (Set 6 is dynamically built from Unsold players)
+    const INITIAL_PLAYERS_POOL = [
+      // SET 1: CAPPED BATTERS (ROUND 1)
+      { id: 'p1', set: 1, setName: 'SET 1: CAPPED BATTERS (R1)', name: 'Virat Kohli', role: 'Batter', country: 'IND', isOverseas: false, basePrice: 2.00, rating: 96, specialty: 'Anchor • Chase Master' },
+      { id: 'p2', set: 1, setName: 'SET 1: CAPPED BATTERS (R1)', name: 'Rohit Sharma', role: 'Batter', country: 'IND', isOverseas: false, basePrice: 2.00, rating: 93, specialty: 'Explosive Opener • Captain' },
+      { id: 'p3', set: 1, setName: 'SET 1: CAPPED BATTERS (R1)', name: 'Travis Head', role: 'Batter', country: 'AUS', isOverseas: true, basePrice: 2.00, rating: 94, specialty: 'Powerplay Destroyer' },
+      { id: 'p4', set: 1, setName: 'SET 1: CAPPED BATTERS (R1)', name: 'Suryakumar Yadav', role: 'Batter', country: 'IND', isOverseas: false, basePrice: 2.00, rating: 95, specialty: '360° Middle-Order Enforcer' },
+      { id: 'p5', set: 1, setName: 'SET 1: CAPPED BATTERS (R1)', name: 'Yashasvi Jaiswal', role: 'Batter', country: 'IND', isOverseas: false, basePrice: 2.00, rating: 92, specialty: 'Aggressive Left-Hand Opener' },
+      { id: 'p6', set: 1, setName: 'SET 1: CAPPED BATTERS (R1)', name: 'Faf du Plessis', role: 'Batter', country: 'SA', isOverseas: true, basePrice: 1.50, rating: 87, specialty: 'Top-Order Batter • Athlete' },
+      { id: 'p7', set: 1, setName: 'SET 1: CAPPED BATTERS (R1)', name: 'Rinku Singh', role: 'Batter', country: 'IND', isOverseas: false, basePrice: 1.50, rating: 90, specialty: 'Elite Death-Over Finisher' },
+      { id: 'p8', set: 1, setName: 'SET 1: CAPPED BATTERS (R1)', name: 'David Miller', role: 'Batter', country: 'SA', isOverseas: true, basePrice: 1.50, rating: 88, specialty: 'Left-Hand Middle Finisher' },
+
+      // SET 2: CAPPED BOWLERS (ROUND 1)
+      { id: 'p9',  set: 2, setName: 'SET 2: CAPPED BOWLERS (R1)', name: 'Jasprit Bumrah', role: 'Bowler', country: 'IND', isOverseas: false, basePrice: 2.00, rating: 98, specialty: 'Yorker King • All-Phase Pace' },
+      { id: 'p10', set: 2, setName: 'SET 2: CAPPED BOWLERS (R1)', name: 'Kagiso Rabada', role: 'Bowler', country: 'SA', isOverseas: true, basePrice: 2.00, rating: 91, specialty: 'Express Hit-the-Deck Pace' },
+      { id: 'p11', set: 2, setName: 'SET 2: CAPPED BOWLERS (R1)', name: 'Mitchell Starc', role: 'Bowler', country: 'AUS', isOverseas: true, basePrice: 2.00, rating: 92, specialty: 'Left-Arm Swing & Death Pace' },
+      { id: 'p12', set: 2, setName: 'SET 2: CAPPED BOWLERS (R1)', name: 'Arshdeep Singh', role: 'Bowler', country: 'IND', isOverseas: false, basePrice: 2.00, rating: 90, specialty: 'Left-Arm Powerplay & Death' },
+      { id: 'p13', set: 2, setName: 'SET 2: CAPPED BOWLERS (R1)', name: 'Mohammed Shami', role: 'Bowler', country: 'IND', isOverseas: false, basePrice: 2.00, rating: 91, specialty: 'Seam Movement Specialist' },
+      { id: 'p14', set: 2, setName: 'SET 2: CAPPED BOWLERS (R1)', name: 'Trent Boult', role: 'Bowler', country: 'NZ', isOverseas: true, basePrice: 2.00, rating: 91, specialty: 'First-Over Wicket Taker' },
+      { id: 'p15', set: 2, setName: 'SET 2: CAPPED BOWLERS (R1)', name: 'Kuldeep Yadav', role: 'Bowler', country: 'IND', isOverseas: false, basePrice: 2.00, rating: 91, specialty: 'Left-Arm Wrist Spin' },
+      { id: 'p16', set: 2, setName: 'SET 2: CAPPED BOWLERS (R1)', name: 'Yuzvendra Chahal', role: 'Bowler', country: 'IND', isOverseas: false, basePrice: 1.50, rating: 89, specialty: 'IPL All-Time Leading Spinner' },
+
+      // SET 3: CAPPED ALL-ROUNDERS & WKs (ROUND 1)
+      { id: 'p17', set: 3, setName: 'SET 3: ALL-ROUNDERS & WKs (R1)', name: 'Hardik Pandya', role: 'All-Rounder', country: 'IND', isOverseas: false, basePrice: 2.00, rating: 94, specialty: 'Fast-Bowling All-Rounder' },
+      { id: 'p18', set: 3, setName: 'SET 3: ALL-ROUNDERS & WKs (R1)', name: 'Will Jacks', role: 'All-Rounder', country: 'ENG', isOverseas: true, basePrice: 2.00, rating: 89, specialty: 'Explosive Top-Order • Off-Break' },
+      { id: 'p19', set: 3, setName: 'SET 3: ALL-ROUNDERS & WKs (R1)', name: 'Heinrich Klaasen', role: 'Wicketkeeper', country: 'SA', isOverseas: true, basePrice: 2.00, rating: 94, specialty: 'Elite Spin-Hitting Keeper' },
+      { id: 'p20', set: 3, setName: 'SET 3: ALL-ROUNDERS & WKs (R1)', name: 'Sanju Samson', role: 'Wicketkeeper', country: 'IND', isOverseas: false, basePrice: 2.00, rating: 91, specialty: 'Top-Order WK • Captain' },
+      { id: 'p21', set: 3, setName: 'SET 3: ALL-ROUNDERS & WKs (R1)', name: 'Rashid Khan', role: 'All-Rounder', country: 'AFG', isOverseas: true, basePrice: 2.00, rating: 96, specialty: 'World-Class Leg-Spin & Cameos' },
+      { id: 'p22', set: 3, setName: 'SET 3: ALL-ROUNDERS & WKs (R1)', name: 'Rishabh Pant', role: 'Wicketkeeper', country: 'IND', isOverseas: false, basePrice: 2.00, rating: 93, specialty: 'X-Factor Left-Hand WK' },
+      { id: 'p23', set: 3, setName: 'SET 3: ALL-ROUNDERS & WKs (R1)', name: 'Sam Curran', role: 'All-Rounder', country: 'ENG', isOverseas: true, basePrice: 2.00, rating: 87, specialty: 'Left-Arm Seam & Floater' },
+      { id: 'p24', set: 3, setName: 'SET 3: ALL-ROUNDERS & WKs (R1)', name: 'Andre Russell', role: 'All-Rounder', country: 'WI', isOverseas: true, basePrice: 2.00, rating: 92, specialty: 'Power Finisher & Death Bowler' },
+
+      // SET 4: BATTERS & ALL-ROUNDERS (ROUND 2)
+      { id: 'p25', set: 4, setName: 'SET 4: BATTERS & ALL-ROUNDERS (R2)', name: 'Aiden Markram', role: 'Batter', country: 'SA', isOverseas: true, basePrice: 1.50, rating: 86, specialty: 'Middle-Order & Part-Time Spin' },
+      { id: 'p26', set: 4, setName: 'SET 4: BATTERS & ALL-ROUNDERS (R2)', name: 'Mitchell Marsh', role: 'All-Rounder', country: 'AUS', isOverseas: true, basePrice: 1.50, rating: 87, specialty: 'Power Top-Order & Medium Pace' },
+      { id: 'p27', set: 4, setName: 'SET 4: BATTERS & ALL-ROUNDERS (R2)', name: 'KL Rahul', role: 'Wicketkeeper', country: 'IND', isOverseas: false, basePrice: 2.00, rating: 90, specialty: 'Versatile WK-Batter' },
+      { id: 'p28', set: 4, setName: 'SET 4: BATTERS & ALL-ROUNDERS (R2)', name: 'Tilak Varma', role: 'Batter', country: 'IND', isOverseas: false, basePrice: 1.00, rating: 88, specialty: 'Left-Hand Middle-Order' },
+      { id: 'p29', set: 4, setName: 'SET 4: BATTERS & ALL-ROUNDERS (R2)', name: 'Axar Patel', role: 'All-Rounder', country: 'IND', isOverseas: false, basePrice: 1.50, rating: 90, specialty: 'Economical Left-Arm Spin & Bat' },
+      { id: 'p30', set: 4, setName: 'SET 4: BATTERS & ALL-ROUNDERS (R2)', name: 'Glenn Maxwell', role: 'All-Rounder', country: 'AUS', isOverseas: true, basePrice: 1.50, rating: 88, specialty: 'Switch-Hit & Off-Spin' },
+
+      // SET 5: BOWLERS & UNCAPPED GEMS (ROUND 2)
+      { id: 'p31', set: 5, setName: 'SET 5: BOWLERS & UNCAPPED GEMS (R2)', name: 'Matheesha Pathirana', role: 'Bowler', country: 'SL', isOverseas: true, basePrice: 1.50, rating: 90, specialty: 'Sling-Action Death Specialist' },
+      { id: 'p32', set: 5, setName: 'SET 5: BOWLERS & UNCAPPED GEMS (R2)', name: 'Varun Chakaravarthy', role: 'Bowler', country: 'IND', isOverseas: false, basePrice: 1.50, rating: 89, specialty: 'Mystery Carrom & Leg-Break' },
+      { id: 'p33', set: 5, setName: 'SET 5: BOWLERS & UNCAPPED GEMS (R2)', name: 'Abhishek Sharma', role: 'All-Rounder', country: 'IND', isOverseas: false, basePrice: 1.00, rating: 89, specialty: 'Ultra-High SR Opener • SLA' },
+      { id: 'p34', set: 5, setName: 'SET 5: BOWLERS & UNCAPPED GEMS (R2)', name: 'Harshit Rana', role: 'Bowler', country: 'IND', isOverseas: false, basePrice: 0.50, rating: 85, specialty: 'Hit-the-Deck Indian Quick' },
+      { id: 'p35', set: 5, setName: 'SET 5: BOWLERS & UNCAPPED GEMS (R2)', name: 'Noor Ahmad', role: 'Bowler', country: 'AFG', isOverseas: true, basePrice: 1.00, rating: 87, specialty: 'Left-Arm Wrist Spin' },
+      { id: 'p36', set: 5, setName: 'SET 5: BOWLERS & UNCAPPED GEMS (R2)', name: 'Ashutosh Sharma', role: 'Batter', country: 'IND', isOverseas: false, basePrice: 0.30, rating: 82, specialty: 'Uncapped Death-Over Hitter' },
+      { id: 'p37', set: 5, setName: 'SET 5: BOWLERS & UNCAPPED GEMS (R2)', name: 'Mayank Yadav', role: 'Bowler', country: 'IND', isOverseas: false, basePrice: 0.75, rating: 86, specialty: '155+ kmph Express Pace' },
+      { id: 'p38', set: 5, setName: 'SET 5: BOWLERS & UNCAPPED GEMS (R2)', name: 'Nehal Wadhera', role: 'Batter', country: 'IND', isOverseas: false, basePrice: 0.30, rating: 81, specialty: 'Uncapped Left-Hand Finisher' }
+    ];
+
+    // Simulated Public Rooms for Lobby
+    const MOCK_PUBLIC_ROOMS = [
+      { code: 'IPL-94X', name: 'BCCI Mega Auction Live #1', owners: 7, maxOwners: 10, spectators: 12, maxSpectators: 20, purse: 120, timer: 10, status: 'OPEN' },
+      { code: 'IND-26M', name: 'Mumbai Champions War Room', owners: 9, maxOwners: 10, spectators: 18, maxSpectators: 20, purse: 120, timer: 8, status: 'ALMOST FULL' },
+      { code: 'T20-PRO', name: 'Tactical Franchise League', owners: 4, maxOwners: 10, spectators: 5, maxSpectators: 20, purse: 120, timer: 10, status: 'OPEN' }
+    ];
+
+    class IPLMegaAuctionApp {
+      constructor() {
+        this.screen = 'landing';
+        this.room = {
+          code: 'IPL-94X',
+          name: 'BCCI Mega War Room #1',
+          purse: 120.00,
+          timerDuration: 10,
+          spectatorsCount: 4
+        };
+        this.userRole = 'owner'; // 'owner' | 'spectator'
+        this.userNickname = 'You (Owner)';
+        this.userTeamId = 'CSK';
+
+        // Simulation State
+        this.teams = [];
+        this.playerQueue = [];
+        this.currentLotIndex = 0;
+        this.unsoldBucket = [];
+        this.isAcceleratedRound = false;
+
+        // Current Lot Bidding State
+        this.currentBid = 0;
+        this.leadingTeamId = null;
+        this.hasAnyBid = false;
+        this.timeLeft = 10;
+        this.isPaused = false;
+        this.simSpeed = 1; // 1x, 1.5x, 2x
+        this.skipVotes = new Set();
+        this.lotResolved = false;
+
+        // Timers
+        this.tickInterval = null;
+        this.aiTimeout = null;
+
+        // Audio
+        this.soundEnabled = true;
+        this.synth = null;
+
+        // Activity & Pool Filter
+        this.activities = [];
+        this.poolFilter = 'all';
+
+        this.renderPublicRooms();
+      }
+
+      // -----------------------------------------------------------------------
+      // AUDIO ENGINE (Tone.js Synthesized Sound Effects - Zero External URLs)
+      // -----------------------------------------------------------------------
+      initAudio() {
+        if (!this.synth && typeof Tone !== 'undefined') {
+          try {
+            this.synth = new Tone.PolySynth(Tone.Synth, {
+              oscillator: { type: 'triangle' },
+              envelope: { attack: 0.01, decay: 0.15, sustain: 0.05, release: 0.2 }
+            }).toDestination();
+          } catch (e) {
+            console.warn('Audio init deferred', e);
+          }
+        }
+      }
+
+      playSound(type) {
+        if (!this.soundEnabled) return;
+        this.initAudio();
+        if (!this.synth) return;
+        try {
+          if (Tone.context.state !== 'running') Tone.start();
+          if (type === 'bid') {
+            this.synth.triggerAttackRelease(['C5', 'E5'], '16n');
+          } else if (type === 'sold') {
+            this.synth.triggerAttackRelease(['C4', 'E4', 'G4', 'C5'], '8n');
+          } else if (type === 'unsold') {
+            this.synth.triggerAttackRelease(['Eb3', 'Bb2'], '8n');
+          } else if (type === 'tick') {
+            this.synth.triggerAttackRelease('A5', '32n');
+          }
+        } catch (e) {}
+      }
+
+      toggleSound() {
+        this.soundEnabled = !this.soundEnabled;
+        document.getElementById('sound-on-icon').classList.toggle('hidden', !this.soundEnabled);
+        document.getElementById('sound-off-icon').classList.toggle('hidden', this.soundEnabled);
+        this.showToast(this.soundEnabled ? 'Auction audio enabled' : 'Auction audio muted', 'info');
+      }
+
+      // -----------------------------------------------------------------------
+      // NAVIGATION & TOAST NOTIFICATIONS
+      // -----------------------------------------------------------------------
+      showScreen(screenName) {
+        this.screen = screenName;
+        ['landing', 'lobby', 'team-select', 'arena', 'summary'].forEach(s => {
+          document.getElementById(`screen-${s}`).classList.add('hidden');
+        });
+        document.getElementById(`screen-${screenName}`).classList.remove('hidden');
+
+        const navBadge = document.getElementById('nav-room-badge');
+        if (screenName === 'team-select' || screenName === 'arena') {
+          navBadge.classList.remove('hidden');
+          navBadge.classList.add('flex');
+          document.getElementById('nav-room-code').textContent = this.room.code;
+        } else {
+          navBadge.classList.add('hidden');
+          navBadge.classList.remove('flex');
+        }
+      }
+
+      showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        const colors = {
+          info: 'bg-surface-800 border-white/15 text-white',
+          success: 'bg-emerald-950/95 border-emerald-500/40 text-emerald-300',
+          warn: 'bg-amber-950/95 border-amber-500/40 text-amber-300',
+          error: 'bg-rose-950/95 border-rose-500/40 text-rose-300'
+        };
+        toast.className = `pointer-events-auto px-4 py-3 rounded-2xl border shadow-xl text-xs font-bold animate-slide-up flex items-center justify-between gap-2 ${colors[type] || colors.info}`;
+        toast.innerHTML = `<span>${message}</span>`;
+        container.appendChild(toast);
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          toast.style.transition = 'opacity 0.25s ease';
+          setTimeout(() => toast.remove(), 260);
+        }, 2800);
+      }
+
+      copyRoomCode() {
+        const temp = document.createElement('input');
+        temp.value = this.room.code;
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand('copy');
+        document.body.removeChild(temp);
+        this.showToast(`Room code ${this.room.code} copied to clipboard!`, 'success');
+      }
+
+      confirmReturnHome() {
+        if (this.screen === 'landing') return;
+        this.stopTimers();
+        this.showScreen('landing');
+      }
+
+      // -----------------------------------------------------------------------
+      // LOBBY & ROOM CREATION FLOW
+      // -----------------------------------------------------------------------
+      goToLobby() {
+        this.initAudio();
+        this.showScreen('lobby');
+      }
+
+      quickStartSolo() {
+        this.initAudio();
+        this.room = {
+          code: 'IPL-' + Math.random().toString(36).substring(2, 5).toUpperCase(),
+          name: 'Solo Mega Auction',
+          purse: 120.00,
+          timerDuration: 10,
+          spectatorsCount: 3
+        };
+        this.userRole = 'owner';
+        this.userNickname = 'You (Owner)';
+        this.setupTeamsForLobby();
+        this.showScreen('team-select');
+      }
+
+      renderPublicRooms() {
+        const list = document.getElementById('public-rooms-list');
+        list.innerHTML = MOCK_PUBLIC_ROOMS.map(r => `
+          <div class="p-4 rounded-2xl bg-surface-900/90 border border-white/10 hover:border-white/20 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded bg-white/10 font-mono text-xs font-bold text-emerald-400">${r.code}</span>
+                <span class="font-bold text-sm text-white">${r.name}</span>
+              </div>
+              <div class="flex flex-wrap items-center gap-3 text-xs text-zinc-400 font-mono">
+                <span>Owners: <strong class="text-white">${r.owners}/${r.maxOwners}</strong></span>
+                <span>•</span>
+                <span>Spectators: <strong class="text-sky-400">${r.spectators}/${r.maxSpectators}</strong></span>
+                <span>•</span>
+                <span>Purse: ₹${r.purse}Cr</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="app.joinPresetRoom('${r.code}', 'owner')" class="px-3.5 py-2 rounded-xl bg-emeraldBid-500 hover:bg-emeraldBid-600 text-zinc-950 font-extrabold text-xs transition cursor-pointer">
+                Join Owner
+              </button>
+              <button onclick="app.joinPresetRoom('${r.code}', 'spectator')" class="px-3 py-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-zinc-300 border border-white/10 font-bold text-xs transition cursor-pointer">
+                Spectate (${r.spectators}/20)
+              </button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      createRoom() {
+        const nick = document.getElementById('player-nickname-input').value.trim() || 'You (Owner)';
+        const rName = document.getElementById('create-room-name').value.trim() || 'BCCI Mega War Room';
+        const purse = parseFloat(document.getElementById('create-room-purse').value) || 120;
+        const timer = parseInt(document.getElementById('create-room-timer').value, 10) || 10;
+        const randomCode = 'IPL-' + Math.random().toString(36).substring(2, 5).toUpperCase();
+
+        this.userNickname = nick;
+        this.userRole = 'owner';
+        this.room = {
+          code: randomCode,
+          name: rName,
+          purse: purse,
+          timerDuration: timer,
+          spectatorsCount: Math.floor(Math.random() * 6) + 2
+        };
+
+        this.setupTeamsForLobby();
+        this.showScreen('team-select');
+        this.showToast(`Created Room ${randomCode}! Select your franchise.`, 'success');
+      }
+
+      joinPresetRoom(code, role) {
+        const nick = document.getElementById('player-nickname-input').value.trim() || (role === 'spectator' ? 'Spectator' : 'You (Owner)');
+        const found = MOCK_PUBLIC_ROOMS.find(r => r.code === code) || MOCK_PUBLIC_ROOMS[0];
+        this.userNickname = nick;
+        this.userRole = role;
+        this.room = {
+          code: found.code,
+          name: found.name,
+          purse: found.purse,
+          timerDuration: found.timer,
+          spectatorsCount: Math.min(20, found.spectators + (role === 'spectator' ? 1 : 0))
+        };
+        this.setupTeamsForLobby();
+        this.showScreen('team-select');
+        this.showToast(`Joined ${found.code} as ${role === 'owner' ? 'Franchise Owner' : 'Spectator'}`, 'success');
+      }
+
+      joinByCode(role) {
+        const raw = document.getElementById('join-code-input').value.trim().toUpperCase();
+        if (!raw) {
+          this.showToast('Please enter a valid 6-character room code (e.g. IPL-94X)', 'warn');
+          return;
+        }
+        const nick = document.getElementById('player-nickname-input').value.trim() || 'You';
+        this.userNickname = nick;
+        this.userRole = role;
+        this.room = {
+          code: raw,
+          name: `Custom Room ${raw}`,
+          purse: 120,
+          timerDuration: 10,
+          spectatorsCount: 5
+        };
+        this.setupTeamsForLobby();
+        this.showScreen('team-select');
+        this.showToast(`Connected to ${raw}!`, 'success');
+      }
+
+      // -----------------------------------------------------------------------
+      // TEAM SELECTION & FRANCHISE INITIALIZATION
+      // -----------------------------------------------------------------------
+      setupTeamsForLobby() {
+        const aiManagers = ['Vikram AI', 'Aarav AI', 'Neha AI', 'Rohan AI', 'Kabir AI', 'Zoya AI', 'Dev AI', 'Meera AI', 'Arjun AI', 'Tara AI'];
+        this.userTeamId = this.userRole === 'owner' ? 'CSK' : null;
+
+        this.teams = FRANCHISES_DATA.map((f, idx) => {
+          const isUser = this.userRole === 'owner' && f.id === this.userTeamId;
+          return {
+            ...f,
+            isUser,
+            ownerName: isUser ? this.userNickname : aiManagers[idx],
+            purse: this.room.purse,
+            initialPurse: this.room.purse,
+            squad: [],
+            overseasCount: 0,
+            roleCounts: { Batter: 0, Bowler: 0, 'All-Rounder': 0, Wicketkeeper: 0 }
+          };
+        });
+
+        this.renderTeamSelectGrid();
+      }
+
+      selectFranchise(teamId) {
+        if (this.userRole !== 'owner') {
+          this.showToast('You joined as a Spectator. Switch to Owner in Lobby to control a team.', 'warn');
+          return;
+        }
+        this.userTeamId = teamId;
+        const aiManagers = ['Vikram AI', 'Aarav AI', 'Neha AI', 'Rohan AI', 'Kabir AI', 'Zoya AI', 'Dev AI', 'Meera AI', 'Arjun AI', 'Tara AI'];
+        this.teams.forEach((t, idx) => {
+          t.isUser = t.id === teamId;
+          t.ownerName = t.isUser ? this.userNickname : aiManagers[idx];
+        });
+        this.renderTeamSelectGrid();
+      }
+
+      renderTeamSelectGrid() {
+        document.getElementById('lobby-room-badge').textContent = `ROOM: ${this.room.code}`;
+        document.getElementById('lobby-role-badge').textContent = this.userRole === 'owner' ? 'ROLE: FRANCHISE OWNER' : 'ROLE: SPECTATOR (VIEW ONLY)';
+        document.getElementById('lobby-owners-count').textContent = '10';
+        document.getElementById('lobby-spectators-count').textContent = this.room.spectatorsCount;
+
+        const grid = document.getElementById('franchises-grid');
+        grid.innerHTML = this.teams.map(team => {
+          const selected = team.isUser;
+          return `
+            <div onclick="app.selectFranchise('${team.id}')" class="relative rounded-2xl p-4 border transition cursor-pointer flex flex-col justify-between gap-3 ${selected ? 'bg-emerald-950/40 border-emerald-400 ring-2 ring-emerald-400/40' : 'bg-surface-900 border-white/10 hover:border-white/25'}">
+              ${selected ? '<span class="absolute top-3 right-3 px-2 py-0.5 rounded-full text-[10px] font-black bg-emeraldBid-500 text-zinc-950">YOUR TEAM</span>' : '<span class="absolute top-3 right-3 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/5 text-zinc-400">AI BOT</span>'}
+              <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-xl flex items-center justify-center font-black text-sm shadow-md shrink-0" style="background:${team.color}; color:${team.textColor};">
+                  ${team.short}
+                </div>
+                <div>
+                  <div class="font-extrabold text-sm text-white leading-tight">${team.name}</div>
+                  <div class="text-[11px] text-zinc-400 mt-0.5">${team.ownerName}</div>
+                </div>
+              </div>
+              <div class="pt-2 border-t border-white/5 flex items-center justify-between text-[11px]">
+                <span class="text-zinc-400">${team.aiStyle}</span>
+                <span class="font-mono font-bold text-emerald-400">₹${team.purse.toFixed(0)}Cr</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // -----------------------------------------------------------------------
+      // OFFICIAL IPL CALCULATION & VALIDATION ENGINE
+      // -----------------------------------------------------------------------
+      /**
+       * Official BCCI Bid Increment Slabs:
+       * - Under ₹1.00 Cr: +₹0.05 Cr (5 Lakhs)
+       * - ₹1.00 Cr to < ₹2.00 Cr: +₹0.10 Cr (10 Lakhs)
+       * - ₹2.00 Cr to < ₹5.00 Cr: +₹0.20 Cr (20 Lakhs)
+       * - ₹5.00 Cr and above: +₹0.25 Cr (25 Lakhs)
+       */
+      getNextValidBid() {
+        const player = this.getCurrentPlayer();
+        if (!player) return 0;
+        if (!this.hasAnyBid) {
+          return Number(player.basePrice.toFixed(2));
+        }
+        let inc = 0.05;
+        if (this.currentBid < 1.00) inc = 0.05;
+        else if (this.currentBid < 2.00) inc = 0.10;
+        else if (this.currentBid < 5.00) inc = 0.20;
+        else inc = 0.25;
+
+        return Number((this.currentBid + inc).toFixed(2));
+      }
+
+      /**
+       * Mandatory Reserve / Max Allowable Bid Formula:
+       * Guarantees every team reaches the minimum squad size of 18 players
+       * assuming ₹0.30 Cr (30 Lakhs) minimum base price per remaining mandatory slot.
+       */
+      calculateMaxAllowableBid(team) {
+        const MIN_SQUAD = 18;
+        const MIN_BASE_RESERVE = 0.30;
+        const remainingMandatorySlotsAfterThisPlayer = Math.max(0, MIN_SQUAD - team.squad.length - 1);
+        const reservedPurse = remainingMandatorySlotsAfterThisPlayer * MIN_BASE_RESERVE;
+        const maxBid = team.purse - reservedPurse;
+        return Math.max(0, Number(maxBid.toFixed(2)));
+      }
+
+      /**
+       * Comprehensive Eligibility Check for Any Franchise on the Active Lot
+       */
+      canTeamBid(team, nextBidAmount) {
+        const player = this.getCurrentPlayer();
+        if (!player || this.lotResolved || this.isPaused) {
+          return { allowed: false, reason: 'Bidding paused or lot closed' };
+        }
+        if (this.leadingTeamId === team.id) {
+          return { allowed: false, reason: 'You already hold the highest bid!' };
+        }
+        if (team.squad.length >= 25) {
+          return { allowed: false, reason: 'Squad full (Maximum 25 players reached)' };
+        }
+        if (player.isOverseas && team.overseasCount >= 8) {
+          return { allowed: false, reason: 'Overseas quota full (Max 8 OS players allowed)' };
+        }
+        const maxBid = this.calculateMaxAllowableBid(team);
+        if (nextBidAmount > maxBid) {
+          return {
+            allowed: false,
+            reason: `Exceeds Max Allowable Bid (₹${maxBid.toFixed(2)} Cr) — reserve needed for 18-player min squad`
+          };
+        }
+        if (nextBidAmount > team.purse) {
+          return { allowed: false, reason: 'Insufficient purse remaining' };
+        }
+        return { allowed: true, reason: '' };
+      }
+
+      // -----------------------------------------------------------------------
+      // AUCTION ARENA LIFECYCLE & SET ROTATION ENGINE
+      // -----------------------------------------------------------------------
+      startAuction() {
+        this.initAudio();
+        // Deep copy players pool for this auction instance
+        this.playerQueue = INITIAL_PLAYERS_POOL.map(p => ({
+          ...p,
+          status: 'upcoming', // 'upcoming' | 'sold' | 'unsold'
+          soldTo: null,
+          soldPrice: 0
+        }));
+        this.currentLotIndex = 0;
+        this.unsoldBucket = [];
+        this.isAcceleratedRound = false;
+        this.activities = [];
+        this.isPaused = false;
+        this.simSpeed = 1;
+
+        this.showScreen('arena');
+        this.addSystemBanner(`Auction Room ${this.room.code} is LIVE! Purse: ₹${this.room.purse.toFixed(2)} Cr per franchise.`);
+        this.loadCurrentLot();
+        this.startMasterClock();
+      }
+
+      getCurrentPlayer() {
+        return this.playerQueue[this.currentLotIndex] || null;
+      }
+
+      loadCurrentLot() {
+        const player = this.getCurrentPlayer();
+        if (!player) {
+          // Check if we have unsold players to trigger Set 6: Accelerated Round
+          if (!this.isAcceleratedRound && this.unsoldBucket.length > 0) {
+            this.triggerAcceleratedRound();
+            return;
+          }
+          // Otherwise conclude auction and show Summary & Playing XI Evaluator
+          this.concludeAuction();
+          return;
+        }
+
+        this.currentBid = player.basePrice;
+        this.leadingTeamId = null;
+        this.hasAnyBid = false;
+        this.timeLeft = this.room.timerDuration;
+        this.skipVotes = new Set();
+        this.lotResolved = false;
+
+        this.renderArenaUI();
+        this.scheduleNextAIBid();
+      }
+
+      triggerAcceleratedRound() {
+        this.isAcceleratedRound = true;
+        const acceleratedPlayers = this.unsoldBucket.map(p => ({
+          ...p,
+          set: 6,
+          setName: 'SET 6: ACCELERATED UNSOLD ROUND',
+          status: 'upcoming'
+        }));
+        this.unsoldBucket = [];
+        const startIndex = this.playerQueue.length;
+        this.playerQueue.push(...acceleratedPlayers);
+        this.currentLotIndex = startIndex;
+
+        this.addSystemBanner(`⚡ ACCELERATED ROUND STARTED! ${acceleratedPlayers.length} previously unsold players return at base price.`);
+        this.showToast('Accelerated Unsold Round Started!', 'warn');
+        this.loadCurrentLot();
+      }
+
+      startMasterClock() {
+        this.stopTimers();
+        // Tick every 250ms for smooth progress bar & accurate countdown
+        let subTick = 0;
+        this.tickInterval = setInterval(() => {
+          if (this.isPaused || this.lotResolved || this.screen !== 'arena') return;
+
+          subTick += 0.25 * this.simSpeed;
+          if (subTick >= 1) {
+            const wholeSeconds = Math.floor(subTick);
+            subTick -= wholeSeconds;
+            this.timeLeft = Math.max(0, this.timeLeft - wholeSeconds);
+
+            if (this.timeLeft <= 3 && this.timeLeft > 0) {
+              this.playSound('tick');
+            }
+
+            if (this.timeLeft === 0) {
+              this.resolveCurrentLot();
+            }
+          }
+          this.updateTimerVisuals();
+        }, 250);
+      }
+
+      stopTimers() {
+        if (this.tickInterval) clearInterval(this.tickInterval);
+        if (this.aiTimeout) clearTimeout(this.aiTimeout);
+      }
+
+      // -----------------------------------------------------------------------
+      // BIDDING ACTIONS (USER & SMART AI FRANCHISE OWNERS)
+      // -----------------------------------------------------------------------
+      placeUserBid() {
+        if (this.userRole !== 'owner') {
+          this.showToast('Spectators cannot place bids.', 'warn');
+          return;
+        }
+        const userTeam = this.teams.find(t => t.id === this.userTeamId);
+        if (!userTeam) return;
+
+        const nextBid = this.getNextValidBid();
+        const check = this.canTeamBid(userTeam, nextBid);
+        if (!check.allowed) {
+          this.showToast(check.reason, 'error');
+          return;
+        }
+
+        this.executeBid(userTeam.id, nextBid);
+      }
+
+      executeBid(teamId, bidAmount) {
+        if (this.lotResolved) return;
+        const team = this.teams.find(t => t.id === teamId);
+        const player = this.getCurrentPlayer();
+        if (!team || !player) return;
+
+        this.currentBid = bidAmount;
+        this.leadingTeamId = team.id;
+        this.hasAnyBid = true;
+        // Reset hammer timer on every new paddle raise (real IPL rule)
+        this.timeLeft = this.room.timerDuration;
+        // Clear skip votes once active bidding begins
+        this.skipVotes.clear();
+
+        this.playSound('bid');
+        this.addBidLog(team, player, bidAmount);
+        this.renderArenaUI();
+        this.scheduleNextAIBid();
+      }
+
+      scheduleNextAIBid() {
+        if (this.aiTimeout) clearTimeout(this.aiTimeout);
+        if (this.lotResolved || this.isPaused) return;
+
+        // AI reaction delay scales with simulation speed
+        const delayMs = (900 + Math.random() * 1400) / this.simSpeed;
+
+        this.aiTimeout = setTimeout(() => {
+          if (this.lotResolved || this.isPaused || this.screen !== 'arena') return;
+          const player = this.getCurrentPlayer();
+          if (!player) return;
+
+          const nextBid = this.getNextValidBid();
+
+          // Evaluate all eligible AI teams
+          const candidates = this.teams.filter(t => {
+            if (t.isUser) return false;
+            if (t.id === this.leadingTeamId) return false;
+            const check = this.canTeamBid(t, nextBid);
+            if (!check.allowed) return false;
+
+            // Calculate AI Valuation Cap for this player
+            const valuation = this.calculateAIPlayerValuation(t, player);
+            return nextBid <= valuation;
+          });
+
+          if (candidates.length > 0) {
+            // Pick highest valuation AI bidder with slight randomness
+            candidates.sort((a, b) => this.calculateAIPlayerValuation(b, player) - this.calculateAIPlayerValuation(a, player));
+            const chosenAI = candidates[0];
+            this.executeBid(chosenAI.id, nextBid);
+          }
+        }, delayMs);
+      }
+
+      calculateAIPlayerValuation(team, player) {
+        // Base valuation derived from player rating (80 - 98)
+        let baseVal = player.basePrice;
+        if (player.rating >= 95) baseVal = 14.5;
+        else if (player.rating >= 92) baseVal = 10.5;
+        else if (player.rating >= 89) baseVal = 7.2;
+        else if (player.rating >= 86) baseVal = 4.4;
+        else baseVal = 2.0;
+
+        // Role need multiplier
+        const roleCount = team.roleCounts[player.role] || 0;
+        const targetRoleMin = player.role === 'Wicketkeeper' ? 2 : 5;
+        const needMultiplier = roleCount < targetRoleMin ? 1.25 : 0.85;
+
+        // Purse wealth factor
+        const purseFactor = team.purse / 100;
+
+        // Deterministic per-team jitter so AI teams don't bid identically
+        const jitter = 0.85 + ((team.id.charCodeAt(0) + player.id.charCodeAt(1)) % 35) / 100;
+
+        const maxAllowed = this.calculateMaxAllowableBid(team);
+        const computed = baseVal * needMultiplier * team.aggression * purseFactor * jitter;
+        return Math.min(maxAllowed, Math.max(player.basePrice, Number(computed.toFixed(2))));
+      }
+
+      // -----------------------------------------------------------------------
+      // UNANIMOUS SKIP VOTE & LOT RESOLUTION (SOLD / UNSOLD)
+      // -----------------------------------------------------------------------
+      voteSkipPlayer() {
+        const player = this.getCurrentPlayer();
+        if (!player || this.lotResolved) return;
+
+        if (this.hasAnyBid) {
+          this.showToast('Cannot skip once a franchise has placed a bid!', 'warn');
+          return;
+        }
+
+        this.skipVotes.add('USER');
+        // Simulate AI teams agreeing to skip if player rating < 87 or in Accelerated Round
+        this.teams.forEach(t => {
+          if (!t.isUser) {
+            if (player.rating <= 88 || this.isAcceleratedRound || Math.random() > 0.35) {
+              this.skipVotes.add(t.id);
+            }
+          }
+        });
+
+        const totalVotes = this.skipVotes.size;
+        document.getElementById('skip-vote-count').textContent = `${totalVotes}/10`;
+
+        if (totalVotes >= 10) {
+          this.showToast(`Unanimous Skip Approved (10/10)! ${player.name} marked UNSOLD.`, 'info');
+          this.resolveCurrentLot(true);
+        } else {
+          this.showToast(`Skip Vote: ${totalVotes}/10 franchises agreed (need unanimous 10/10).`, 'warn');
+        }
+      }
+
+      resolveCurrentLot(forcedSkip = false) {
+        if (this.lotResolved) return;
+        this.lotResolved = true;
+        if (this.aiTimeout) clearTimeout(this.aiTimeout);
+
+        const player = this.getCurrentPlayer();
+        if (!player) return;
+
+        if (!forcedSkip && this.hasAnyBid && this.leadingTeamId) {
+          // PLAYER SOLD!
+          const winningTeam = this.teams.find(t => t.id === this.leadingTeamId);
+          winningTeam.purse = Number((winningTeam.purse - this.currentBid).toFixed(2));
+          winningTeam.squad.push({
+            ...player,
+            boughtPrice: this.currentBid
+          });
+          if (player.isOverseas) winningTeam.overseasCount += 1;
+          winningTeam.roleCounts[player.role] = (winningTeam.roleCounts[player.role] || 0) + 1;
+
+          player.status = 'sold';
+          player.soldTo = winningTeam.id;
+          player.soldPrice = this.currentBid;
+
+          this.playSound('sold');
+          this.addSoldBanner(winningTeam, player, this.currentBid);
+        } else {
+          // PLAYER UNSOLD!
+          player.status = 'unsold';
+          if (!this.isAcceleratedRound) {
+            this.unsoldBucket.push(player);
+          }
+          this.playSound('unsold');
+          this.addUnsoldBanner(player);
+        }
+
+        this.renderArenaUI();
+
+        // Advance to next lot after short celebration pause
+        setTimeout(() => {
+          this.currentLotIndex += 1;
+          this.loadCurrentLot();
+        }, 1600 / this.simSpeed);
+      }
+
+      // -----------------------------------------------------------------------
+      // CONTROLS: PAUSE & SIMULATION SPEED
+      // -----------------------------------------------------------------------
+      togglePause() {
+        this.isPaused = !this.isPaused;
+        document.getElementById('pause-icon').textContent = this.isPaused ? '▶' : '⏸';
+        document.getElementById('pause-label').textContent = this.isPaused ? 'Resume' : 'Pause';
+        if (!this.isPaused) {
+          this.scheduleNextAIBid();
+        }
+        this.renderArenaUI();
+      }
+
+      cycleSpeed() {
+        if (this.simSpeed === 1) this.simSpeed = 1.5;
+        else if (this.simSpeed === 1.5) this.simSpeed = 2;
+        else this.simSpeed = 1;
+        document.getElementById('speed-toggle-btn').textContent = `${this.simSpeed.toFixed(1)}x`;
+        this.showToast(`Auction speed set to ${this.simSpeed.toFixed(1)}x`, 'info');
+      }
+
+      // -----------------------------------------------------------------------
+      // ACTIVITY FEED & WAR ROOM CHAT (Matches Reference Screenshot Style)
+      // -----------------------------------------------------------------------
+      addSystemBanner(text) {
+        this.activities.unshift({ type: 'system', text, time: this.getTimestamp() });
+        this.renderActivityFeed();
+      }
+
+      addBidLog(team, player, amount) {
+        this.activities.unshift({
+          type: 'bid',
+          team,
+          playerName: player.name,
+          amount,
+          time: this.getTimestamp()
+        });
+        this.renderActivityFeed();
+      }
+
+      addSoldBanner(team, player, price) {
+        this.activities.unshift({
+          type: 'sold',
+          team,
+          playerName: player.name,
+          price,
+          time: this.getTimestamp()
+        });
+        this.renderActivityFeed();
+      }
+
+      addUnsoldBanner(player) {
+        this.activities.unshift({
+          type: 'unsold',
+          playerName: player.name,
+          time: this.getTimestamp()
+        });
+        this.renderActivityFeed();
+      }
+
+      sendChatMessage(e) {
+        e.preventDefault();
+        const input = document.getElementById('war-room-chat-input');
+        const msg = input.value.trim();
+        if (!msg) return;
+        input.value = '';
+
+        const userTeam = this.teams.find(t => t.id === this.userTeamId);
+        this.activities.unshift({
+          type: 'chat',
+          sender: this.userNickname,
+          team: userTeam || null,
+          text: msg,
+          time: this.getTimestamp()
+        });
+        this.renderActivityFeed();
+      }
+
+      sendQuickReaction() {
+        const userTeam = this.teams.find(t => t.id === this.userTeamId);
+        const chant = userTeam ? userTeam.slogan : 'What a bidding war! 🔥🏏';
+        this.activities.unshift({
+          type: 'chat',
+          sender: this.userNickname,
+          team: userTeam || null,
+          text: chant,
+          time: this.getTimestamp()
+        });
+        this.renderActivityFeed();
+      }
+
+      getTimestamp() {
+        const now = new Date();
+        return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      }
+
+      renderActivityFeed() {
+        const list = document.getElementById('activity-feed-list');
+        document.getElementById('activity-count-badge').textContent = this.activities.length;
+
+        list.innerHTML = this.activities.slice(0, 60).map(item => {
+          if (item.type === 'sold') {
+            return `
+              <div class="p-3.5 rounded-2xl bg-surface-950/90 border border-emerald-500/30 flex items-center justify-between gap-3 animate-pop">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-full flex items-center justify-center font-black text-xs shrink-0 shadow" style="background:${item.team.color}; color:${item.team.textColor};">
+                    ${item.team.short}
+                  </div>
+                  <div class="space-y-0.5">
+                    <div class="flex items-center gap-1.5">
+                      <span class="font-extrabold text-xs text-white">${item.team.ownerName.split(' ')[0]}</span>
+                      <span class="px-1.5 py-0.5 rounded text-[10px] font-black" style="background:${item.team.color}; color:${item.team.textColor};">${item.team.short}</span>
+                    </div>
+                    <div class="text-xs sm:text-sm font-extrabold text-amber-300">
+                      💛 ${item.playerName} <span class="text-zinc-400">→</span> <span class="text-emerald-400 font-mono">₹${item.price.toFixed(2)}Cr</span>
+                    </div>
+                    <div class="text-[11px] text-zinc-400">
+                      ✨ ${item.team.slogan}
+                    </div>
+                  </div>
+                </div>
+                <span class="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-black text-[11px] shrink-0">
+                  🏆 SOLD
+                </span>
+              </div>
+            `;
+          }
+
+          if (item.type === 'unsold') {
+            return `
+              <div class="px-3.5 py-2 rounded-xl bg-rose-950/20 border border-rose-500/20 flex items-center gap-2 text-xs font-bold text-rose-400">
+                <span>✕</span>
+                <span><strong class="text-rose-300">${item.playerName}</strong> went UNSOLD</span>
+              </div>
+            `;
+          }
+
+          if (item.type === 'bid') {
+            return `
+              <div class="px-3.5 py-2 rounded-xl bg-surface-950/60 border border-white/5 flex items-center justify-between text-xs">
+                <div class="flex items-center gap-2">
+                  <span class="px-1.5 py-0.5 rounded font-black text-[10px]" style="background:${item.team.color}; color:${item.team.textColor};">${item.team.short}</span>
+                  <span class="text-zinc-300">raised paddle for <strong class="text-white">${item.playerName}</strong></span>
+                </div>
+                <span class="font-mono font-extrabold text-emerald-400">₹${item.amount.toFixed(2)} Cr</span>
+              </div>
+            `;
+          }
+
+          if (item.type === 'chat') {
+            return `
+              <div class="px-3.5 py-2.5 rounded-xl bg-surface-800/70 border border-white/10 flex items-start gap-2.5 text-xs">
+                ${item.team ? `<span class="px-1.5 py-0.5 rounded font-black text-[10px] shrink-0 mt-0.5" style="background:${item.team.color}; color:${item.team.textColor};">${item.team.short}</span>` : `<span class="px-1.5 py-0.5 rounded font-bold text-[10px] bg-zinc-700 text-zinc-200 shrink-0 mt-0.5">SPEC</span>`}
+                <div class="flex-1">
+                  <span class="font-bold text-zinc-300 mr-1.5">${item.sender}:</span>
+                  <span class="text-white">${this.escapeHtml(item.text)}</span>
+                </div>
+                <span class="text-[10px] font-mono text-zinc-500">${item.time}</span>
+              </div>
+            `;
+          }
+
+          return `
+            <div class="px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs font-semibold text-amber-300 text-center">
+              ${item.text}
+            </div>
+          `;
+        }).join('');
+      }
+
+      escapeHtml(str) {
+        return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+      }
+
+      // -----------------------------------------------------------------------
+      // ARENA UI RENDERING & TABS
+      // -----------------------------------------------------------------------
+      updateTimerVisuals() {
+        const pct = Math.max(0, (this.timeLeft / this.room.timerDuration) * 100);
+        const bar = document.getElementById('auction-progress-bar');
+        const box = document.getElementById('timer-box');
+        const secEl = document.getElementById('timer-seconds');
+
+        bar.style.width = `${pct}%`;
+        secEl.textContent = this.timeLeft;
+
+        if (this.timeLeft <= 3) {
+          bar.className = 'h-full bg-rose-500 transition-all duration-200 ease-linear';
+          box.className = 'w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-rose-600/30 border-2 border-rose-500 flex flex-col items-center justify-center shrink-0 timer-urgent animate-pulse-fast';
+          secEl.className = 'text-2xl sm:text-3xl font-black font-mono text-rose-400 leading-none';
+        } else {
+          bar.className = 'h-full bg-emeraldBid-500 transition-all duration-200 ease-linear';
+          box.className = 'w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-surface-950 border-2 border-white/15 flex flex-col items-center justify-center shrink-0';
+          secEl.className = 'text-2xl sm:text-3xl font-black font-mono text-white leading-none';
+        }
+      }
+
+      renderArenaUI() {
+        const player = this.getCurrentPlayer();
+        if (!player) return;
+
+        // Top Set & Lot Strip
+        document.getElementById('arena-set-badge').textContent = player.setName;
+        document.getElementById('arena-lot-number').textContent = this.currentLotIndex + 1;
+        document.getElementById('arena-lot-total').textContent = this.playerQueue.length;
+        document.getElementById('skip-vote-count').textContent = `${this.skipVotes.size}/10`;
+
+        const userTeam = this.teams.find(t => t.id === this.userTeamId);
+        const userTeamPill = document.getElementById('arena-user-team-pill');
+        if (userTeam) {
+          userTeamPill.innerHTML = `<span class="w-2.5 h-2.5 rounded-full" style="background:${userTeam.color};"></span> ${userTeam.short} (${userTeam.squad.length}/25)`;
+        } else {
+          userTeamPill.textContent = 'SPECTATOR MODE';
+        }
+
+        // Active Player Card Details
+        document.getElementById('player-role-badge').textContent = player.role;
+        const originBadge = document.getElementById('player-origin-badge');
+        if (player.isOverseas) {
+          originBadge.textContent = 'OS';
+          originBadge.className = 'px-2.5 py-1 rounded-lg text-xs font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30';
+        } else {
+          originBadge.textContent = 'IND';
+          originBadge.className = 'px-2.5 py-1 rounded-lg text-xs font-extrabold bg-sky-500/20 text-sky-300 border border-sky-500/30';
+        }
+
+        document.getElementById('player-country-label').textContent = `🏏 ${player.country}`;
+        document.getElementById('player-rating-badge').textContent = `OVR ${player.rating}`;
+        document.getElementById('player-name').textContent = player.name;
+        document.getElementById('player-specialty').textContent = player.specialty;
+        document.getElementById('player-base-price').textContent = `₹${player.basePrice.toFixed(2)} Cr`;
+
+        // Current Bid & Leading Team
+        document.getElementById('bid-status-label').textContent = this.hasAnyBid ? 'CURRENT HIGHEST BID' : 'BASE PRICE';
+        document.getElementById('current-bid-amount').textContent = `${this.currentBid.toFixed(2)} Cr`;
+
+        const leadBadge = document.getElementById('leading-team-badge');
+        if (this.hasAnyBid && this.leadingTeamId) {
+          const leader = this.teams.find(t => t.id === this.leadingTeamId);
+          leadBadge.innerHTML = `<span class="w-2 h-2 rounded-full" style="background:${leader.color};"></span> <span>${leader.short} • ${leader.ownerName.split(' ')[0]}</span>`;
+          leadBadge.className = 'mt-1 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30';
+        } else {
+          leadBadge.textContent = 'Awaiting Opening Paddle';
+          leadBadge.className = 'mt-1 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-surface-800 text-zinc-400 border border-white/10';
+        }
+
+        // User Purse & Bid Button State
+        const nextBid = this.getNextValidBid();
+        const bidBtn = document.getElementById('main-bid-btn');
+        const bidBtnText = document.getElementById('main-bid-btn-text');
+        const lockBanner = document.getElementById('bid-lock-reason');
+
+        if (userTeam) {
+          const maxBid = this.calculateMaxAllowableBid(userTeam);
+          document.getElementById('user-purse-display').textContent = `${userTeam.purse.toFixed(2)} Cr`;
+          document.getElementById('user-max-bid-display').textContent = `${maxBid.toFixed(2)} Cr`;
+          document.getElementById('mysquad-count-badge').textContent = `${userTeam.squad.length}/25`;
+
+          const check = this.canTeamBid(userTeam, nextBid);
+          bidBtn.disabled = !check.allowed;
+          bidBtnText.textContent = `BID ₹${nextBid.toFixed(2)} Cr`;
+
+          if (!check.allowed && !this.lotResolved) {
+            lockBanner.textContent = check.reason;
+            lockBanner.classList.remove('hidden');
+          } else {
+            lockBanner.classList.add('hidden');
+          }
+        } else {
+          document.getElementById('user-purse-display').textContent = 'SPECTATING';
+          document.getElementById('user-max-bid-display').textContent = 'N/A';
+          bidBtn.disabled = true;
+          bidBtnText.textContent = `SPECTATOR MODE (NEXT: ₹${nextBid.toFixed(2)} Cr)`;
+          lockBanner.classList.add('hidden');
+        }
+
+        this.updateTimerVisuals();
+        this.renderMiniTeamsStrip();
+        this.renderMySquadTab();
+        this.renderAllTeamsTab();
+        this.renderPlayerPoolTab();
+        this.renderRulesMathTab();
+      }
+
+      renderMiniTeamsStrip() {
+        const strip = document.getElementById('mini-teams-strip');
+        strip.innerHTML = this.teams.map(t => {
+          const isLeading = this.leadingTeamId === t.id;
+          return `
+            <div class="px-2.5 py-1.5 rounded-xl border transition flex flex-col justify-between ${isLeading ? 'bg-emerald-950/50 border-emerald-400' : t.isUser ? 'bg-surface-800 border-white/25' : 'bg-surface-900 border-white/5'}">
+              <div class="flex items-center justify-between">
+                <span class="font-black text-[11px]" style="color:${t.color};">${t.short}${t.isUser ? ' ★' : ''}</span>
+                <span class="font-mono text-[10px] text-zinc-400">${t.squad.length}/25</span>
+              </div>
+              <div class="font-mono font-bold text-xs text-white mt-0.5">₹${t.purse.toFixed(1)}Cr</div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      switchTab(tabName) {
+        ['activity', 'mysquad', 'squads', 'pool', 'rules'].forEach(t => {
+          const btn = document.getElementById(`tab-btn-${t}`);
+          const panel = document.getElementById(`tab-panel-${t}`);
+          if (t === tabName) {
+            btn.className = 'tab-btn px-4 py-2.5 rounded-t-xl text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 border-amber-400 bg-amber-500/10 text-amber-300 whitespace-nowrap cursor-pointer';
+            panel.classList.remove('hidden');
+          } else {
+            btn.className = 'tab-btn px-4 py-2.5 rounded-t-xl text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 border-transparent text-zinc-400 hover:text-white whitespace-nowrap cursor-pointer';
+            panel.classList.add('hidden');
+          }
+        });
+      }
+
+      renderMySquadTab() {
+        const team = this.teams.find(t => t.id === this.userTeamId) || this.teams[0];
+        if (!team) return;
+
+        const maxBid = this.calculateMaxAllowableBid(team);
+        document.getElementById('mysquad-summary-header').innerHTML = `
+          <div class="p-3 rounded-xl bg-surface-950 border border-white/10">
+            <div class="text-[10px] text-zinc-400 uppercase font-bold">Remaining Purse</div>
+            <div class="text-lg font-mono font-black text-emerald-400">₹${team.purse.toFixed(2)} Cr</div>
+          </div>
+          <div class="p-3 rounded-xl bg-surface-950 border border-white/10">
+            <div class="text-[10px] text-zinc-400 uppercase font-bold">Max Safe Bid</div>
+            <div class="text-lg font-mono font-black text-amber-400">₹${maxBid.toFixed(2)} Cr</div>
+          </div>
+          <div class="p-3 rounded-xl bg-surface-950 border border-white/10">
+            <div class="text-[10px] text-zinc-400 uppercase font-bold">Squad Size</div>
+            <div class="text-lg font-mono font-black text-white">${team.squad.length} <span class="text-xs text-zinc-500">(Min 18 / Max 25)</span></div>
+          </div>
+          <div class="p-3 rounded-xl bg-surface-950 border border-white/10">
+            <div class="text-[10px] text-zinc-400 uppercase font-bold">Overseas Quota</div>
+            <div class="text-lg font-mono font-black text-indigo-400">${team.overseasCount} / 8</div>
+          </div>
+          <div class="p-3 rounded-xl bg-surface-950 border border-white/10">
+            <div class="text-[10px] text-zinc-400 uppercase font-bold">Role Balance</div>
+            <div class="text-xs font-mono font-bold text-zinc-200 mt-1">
+              BAT:${team.roleCounts.Batter} • BWL:${team.roleCounts.Bowler} • AR:${team.roleCounts['All-Rounder']} • WK:${team.roleCounts.Wicketkeeper}
+            </div>
+          </div>
+        `;
+
+        const grid = document.getElementById('mysquad-players-grid');
+        if (team.squad.length === 0) {
+          grid.innerHTML = `<div class="col-span-full text-center py-8 text-zinc-500 text-xs">No players acquired yet. Raise your paddle in the arena!</div>`;
+          return;
+        }
+
+        grid.innerHTML = team.squad.map(p => `
+          <div class="p-3 rounded-xl bg-surface-950 border border-white/10 flex items-center justify-between">
+            <div>
+              <div class="flex items-center gap-1.5">
+                <span class="font-bold text-sm text-white">${p.name}</span>
+                ${p.isOverseas ? '<span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300">OS</span>' : ''}
+              </div>
+              <div class="text-[11px] text-zinc-400">${p.role} • OVR ${p.rating}</div>
+            </div>
+            <div class="font-mono font-extrabold text-sm text-emerald-400">₹${p.boughtPrice.toFixed(2)}Cr</div>
+          </div>
+        `).join('');
+      }
+
+      renderAllTeamsTab() {
+        const tbody = document.getElementById('all-teams-table-body');
+        tbody.innerHTML = this.teams.map(t => {
+          const maxBid = this.calculateMaxAllowableBid(t);
+          return `
+            <tr class="${t.isUser ? 'bg-emerald-500/10' : ''}">
+              <td class="py-2.5 px-3 font-extrabold text-white flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full inline-block" style="background:${t.color};"></span>
+                <span>${t.short}</span>
+                ${t.isUser ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-emeraldBid-500 text-zinc-950 font-black">YOU</span>' : ''}
+              </td>
+              <td class="py-2.5 px-3 text-zinc-300 text-xs">${t.ownerName}</td>
+              <td class="py-2.5 px-3 text-right font-mono font-bold text-emerald-400">₹${t.purse.toFixed(2)} Cr</td>
+              <td class="py-2.5 px-3 text-right font-mono text-zinc-300">₹${maxBid.toFixed(2)} Cr</td>
+              <td class="py-2.5 px-3 text-center font-mono ${t.squad.length >= 18 ? 'text-emerald-400' : 'text-amber-400'}">${t.squad.length}/25</td>
+              <td class="py-2.5 px-3 text-center font-mono text-indigo-300">${t.overseasCount}/8</td>
+              <td class="py-2.5 px-3 text-center font-mono text-xs text-zinc-400">
+                ${t.roleCounts.Batter} / ${t.roleCounts.Bowler} / ${t.roleCounts['All-Rounder']} / ${t.roleCounts.Wicketkeeper}
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      filterPool(filter) {
+        this.poolFilter = filter;
+        document.querySelectorAll('.pool-filter-btn').forEach(btn => {
+          btn.className = 'pool-filter-btn px-3 py-1.5 rounded-lg bg-surface-800 text-zinc-300 font-bold text-xs cursor-pointer';
+        });
+        event.target.className = 'pool-filter-btn px-3 py-1.5 rounded-lg bg-white text-zinc-950 font-bold text-xs cursor-pointer';
+        this.renderPlayerPoolTab();
+      }
+
+      renderPlayerPoolTab() {
+        const list = document.getElementById('player-pool-list');
+        const filtered = this.playerQueue.filter(p => {
+          if (this.poolFilter === 'all') return true;
+          return p.status === this.poolFilter;
+        });
+
+        list.innerHTML = filtered.map(p => {
+          let statusBadge = `<span class="text-[10px] font-mono px-2 py-0.5 rounded bg-surface-800 text-zinc-400">SET ${p.set}</span>`;
+          if (p.status === 'sold') {
+            statusBadge = `<span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">SOLD ${p.soldTo} ₹${p.soldPrice.toFixed(2)}Cr</span>`;
+          } else if (p.status === 'unsold') {
+            statusBadge = `<span class="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold">UNSOLD</span>`;
+          }
+          return `
+            <div class="p-3 rounded-xl bg-surface-950 border border-white/10 flex items-center justify-between gap-2">
+              <div>
+                <div class="font-bold text-xs text-white flex items-center gap-1.5">
+                  <span>${p.name}</span>
+                  ${p.isOverseas ? '<span class="text-[9px] px-1 rounded bg-indigo-500/20 text-indigo-300">OS</span>' : ''}
+                </div>
+                <div class="text-[11px] text-zinc-400">${p.role} • Base ₹${p.basePrice.toFixed(2)}Cr</div>
+              </div>
+              ${statusBadge}
+            </div>
+          `;
+        }).join('');
+      }
+
+      renderRulesMathTab() {
+        const team = this.teams.find(t => t.id === this.userTeamId) || this.teams[0];
+        if (!team) return;
+        const remMandatory = Math.max(0, 18 - team.squad.length - 1);
+        const reserve = (remMandatory * 0.30).toFixed(2);
+        const maxBid = this.calculateMaxAllowableBid(team).toFixed(2);
+        document.getElementById('live-math-breakdown').innerHTML = `
+          <div><strong>Live Calculation for ${team.short}:</strong></div>
+          <div class="mt-1">Purse (₹${team.purse.toFixed(2)} Cr) - [${remMandatory} remaining mandatory slots × ₹0.30 Cr = ₹${reserve} Cr] = <strong>₹${maxBid} Cr Max Allowable Bid</strong></div>
+        `;
+      }
+
+      // -----------------------------------------------------------------------
+      // POST-AUCTION SUMMARY & PLAYING XI EVALUATOR
+      // -----------------------------------------------------------------------
+      concludeAuction() {
+        this.stopTimers();
+        this.playSound('sold');
+        this.showScreen('summary');
+
+        // Auto-fill remaining roster slots up to 18 with domestic squad depth players if short,
+        // just like post-auction supplement pools, while scoring actual auction acquisitions heavily.
+        const evaluated = this.teams.map(team => {
+          const sortedByRating = [...team.squad].sort((a, b) => b.rating - a.rating);
+          const bestXI = sortedByRating.slice(0, 11);
+          const avgRating = bestXI.length > 0
+            ? (bestXI.reduce((sum, p) => sum + p.rating, 0) / 11).toFixed(1)
+            : '75.0';
+
+          // Composite Score out of 100
+          const balanceBonus = (team.roleCounts.Batter >= 2 && team.roleCounts.Bowler >= 2 && team.roleCounts['All-Rounder'] >= 1 && team.roleCounts.Wicketkeeper >= 1) ? 6 : 0;
+          const powerScore = Math.min(99, Math.round(parseFloat(avgRating) + balanceBonus));
+
+          return {
+            ...team,
+            bestXI,
+            powerScore
+          };
+        }).sort((a, b) => b.powerScore - a.powerScore);
+
+        const board = document.getElementById('summary-leaderboard');
+        board.innerHTML = evaluated.map((t, idx) => `
+          <div class="rounded-2xl glass-card p-5 space-y-3 border ${t.isUser ? 'border-emerald-400/60' : 'border-white/10'}">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm" style="background:${t.color}; color:${t.textColor};">
+                  #${idx + 1}
+                </div>
+                <div>
+                  <div class="font-black text-base text-white flex items-center gap-2">
+                    <span>${t.name}</span>
+                    ${t.isUser ? '<span class="px-2 py-0.5 rounded bg-emeraldBid-500 text-zinc-950 text-[10px] font-black">YOU</span>' : ''}
+                  </div>
+                  <div class="text-xs text-zinc-400">${t.ownerName} • Purse Left: ₹${t.purse.toFixed(2)} Cr</div>
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="text-[10px] font-bold uppercase text-zinc-400">XI RATING</div>
+                <div class="text-2xl font-black font-mono text-emerald-400">${t.powerScore}/100</div>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-1.5 pt-2 border-t border-white/10">
+              ${t.bestXI.length > 0
+                ? t.bestXI.map(p => `<span class="px-2 py-1 rounded-lg bg-surface-950 border border-white/10 text-[11px] text-zinc-200 font-semibold">${p.name} <span class="text-emerald-400 font-mono">(${p.boughtPrice.toFixed(1)}Cr)</span></span>`).join('')
+                : '<span class="text-xs text-zinc-500">No players acquired</span>'
+              }
+            </div>
+          </div>
+        `).join('');
+      }
+
+      resetToLanding() {
+        this.stopTimers();
+        this.showScreen('landing');
+      }
+    }
+
+    // Boot Application on Window Load
+    let app;
+    window.onload = function () {
+      app = new IPLMegaAuctionApp();
+    };
+  </script>
+</body>
+</html>
